@@ -7,70 +7,97 @@
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { font-family: sans-serif; background-color: #f0f2f5; padding: 20px; }
-        .container { background: white; border-radius: 15px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        .btn { background: #00B900; color: white; border: none; width: 100%; padding: 12px; border-radius: 8px; font-size: 16px; margin-top: 10px; cursor: pointer; }
-        .match-card { border: 1px solid #ddd; padding: 15px; border-radius: 10px; margin-top: 20px; }
+        body { font-family: -apple-system, sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; padding: 20px; }
+        .container { background: white; width: 100%; max-width: 400px; border-radius: 20px; padding: 25px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+        h2 { color: #00B900; margin-top: 0; }
+        .user-box { background: #e8f5e9; padding: 10px 15px; border-radius: 10px; margin-bottom: 20px; font-weight: bold; color: #2e7d32; }
+        .match-card { border: 1px solid #eee; padding: 20px; border-radius: 15px; background: #fff; }
+        .btn { background: #00B900; color: white; border: none; width: 100%; padding: 15px; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        .btn:disabled { background: #ccc; cursor: not-allowed; }
+        .footer { margin-top: 20px; font-size: 12px; color: #999; text-align: center; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2 style="color: #00B900;">必IN 臨打小助手</h2>
-        <div id="userName">身份辨識中...</div>
+        <h2>必IN 臨打小助手</h2>
+        <div id="userName" class="user-box">正在連線至 LINE...</div>
 
         <div class="match-card">
-            <strong>週六下午羽球團 (測試場次)</strong><br>
-            地點：必IN羽球館 | 費用：$250
+            <strong style="font-size: 1.2em;">週六下午羽球團 (測試)</strong><br>
+            <p style="color: #666; margin: 10px 0;">
+                📍 地點：必IN羽球館<br>
+                💰 費用：$250 / 人
+            </p>
             <button class="btn" id="regBtn" onclick="register()">我要報名 (+1)</button>
         </div>
+        
+        <div class="footer">系統版本：v1.0 - 資料同步中</div>
     </div>
 
     <script>
-        // 1. 初始化 Supabase (請替換成你的資訊)
+        // --- 2. 基本設定 (已填入你的資訊) ---
         const supabaseUrl = 'https://vdhqcyjjxzljelqpkyuo.supabase.co';
         const supabaseKey = 'sb_publishable_Q25ZWq1J0VYL7SVJbGVRHg_YVj--rkd';
-        const supabase = supabaseJs.createClient(supabaseUrl, supabaseKey);
+        const liffId = '2008137674-5cDNlo0N';
 
+        const supabase = supabaseJs.createClient(supabaseUrl, supabaseKey);
         let userProfile = null;
 
+        // --- 3. 初始化 LINE LIFF ---
         async function main() {
-            await liff.init({ liffId: "2008137674-5cDNlo0N" });
-            if (!liff.isLoggedIn()) {
-                liff.login();
-            } else {
-                userProfile = await liff.getProfile();
-                document.getElementById("userName").innerText = "👋 哈囉，" + userProfile.displayName;
+            try {
+                await liff.init({ liffId: liffId });
+                if (!liff.isLoggedIn()) {
+                    liff.login();
+                } else {
+                    userProfile = await liff.getProfile();
+                    document.getElementById("userName").innerText = "👋 哈囉，" + userProfile.displayName;
+                }
+            } catch (err) {
+                document.getElementById("userName").innerText = "❌ 系統啟動失敗";
+                alert("LINE 初始化失敗，原因：" + err.message);
             }
         }
         main();
 
-        // 2. 報名功能：寫入資料庫
+        // --- 4. 報名功能 ---
         async function register() {
-            if (!userProfile) return alert("尚未取得球友身份");
+            if (!userProfile) {
+                alert("尚未識別身分，請嘗試關閉視窗重新開啟。");
+                return;
+            }
 
             const btn = document.getElementById("regBtn");
-            btn.innerText = "處理中...";
+            const originalText = btn.innerText;
+            btn.innerText = "傳送中...";
             btn.disabled = true;
 
-            const { data, error } = await supabase
-                .from('registrations') // 確保你在 Supabase 有建這張表
-                .insert([
-                    { 
-                        line_id: userProfile.userId, 
-                        user_name: userProfile.displayName,
-                        status: 'confirmed' 
-                    }
-                ]);
+            try {
+                // 嘗試寫入 Supabase 資料表
+                const { error } = await supabase
+                    .from('registrations')
+                    .insert([
+                        { 
+                            line_id: userProfile.userId, 
+                            user_name: userProfile.displayName,
+                            status: 'confirmed' 
+                        }
+                    ]);
 
-            if (error) {
-                console.error(error);
-                alert("報名失敗：" + error.message);
-                btn.innerText = "我要報名 (+1)";
+                if (error) {
+                    // 這裡會跳出詳細錯誤碼 (例如 404 表格找不到, 425 權限不足)
+                    alert("❌ 報名失敗\n錯誤代碼：" + (error.code || 'Unknown') + "\n訊息：" + error.message);
+                    btn.innerText = originalText;
+                    btn.disabled = false;
+                } else {
+                    alert("🎉 報名成功！\n資料已存入 必IN 資料庫");
+                    btn.innerText = "已完成報名";
+                    btn.style.background = "#ccc";
+                }
+            } catch (err) {
+                alert("發生意外錯誤：" + err.message);
+                btn.innerText = originalText;
                 btn.disabled = false;
-            } else {
-                alert("🎉 報名成功！資料已存入 Supabase");
-                btn.innerText = "已完成報名";
-                btn.style.background = "#ccc";
             }
         }
     </script>
