@@ -3,33 +3,78 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>除錯中</title>
+    <title>必IN 臨打小助手</title>
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: sans-serif; background: #f0f2f5; padding: 20px; }
+        .card { background: white; padding: 15px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .btn { background: #00B900; color: white; border: none; padding: 10px; width: 100%; border-radius: 5px; cursor: pointer; }
+        input { width: 90%; padding: 10px; margin: 5px 0; border: 1px solid #ddd; border-radius: 5px; }
+    </style>
 </head>
 <body>
-    <h2 id="msg">正在啟動 LIFF...</h2>
-    <p id="error" style="color:red"></p>
+    <h2 id="userName">身份讀取中...</h2>
+
+    <div class="card" style="border: 2px dashed #007bff;">
+        <h3>＋ 發起新揪團</h3>
+        <input type="text" id="mTitle" placeholder="活動名稱 (例: 週六中級團)">
+        <input type="number" id="mMax" placeholder="人數上限">
+        <button class="btn" style="background:#007bff;" onclick="createMatch()">發布場次</button>
+    </div>
+
+    <div id="matchList"></div>
 
     <script>
-        async function test() {
-            const msg = document.getElementById("msg");
-            const errDiv = document.getElementById("error");
-            try {
-                // *** 這裡請填入你在控制台看到的 LIFF ID (例如 2008137674-...) ***
-                await liff.init({ liffId: "2008137674-5cDNlo0N" }); 
-                
-                if (!liff.isLoggedIn()) {
-                    liff.login();
-                } else {
-                    const profile = await liff.getProfile();
-                    msg.innerText = "成功！哈囉 " + profile.displayName;
-                }
-            } catch (err) {
-                msg.innerText = "失敗了！";
-                errDiv.innerText = "錯誤訊息: " + err.message;
+        // 1. 請填入你截圖中的資訊
+        const supabaseUrl = 'https://vdhqcyjjxzljelqpkyuo.supabase.co';
+        const supabaseKey = '你的_Publishable_Key'; 
+        const supabase = supabaseJs.createClient(supabaseUrl, supabaseKey);
+        let userProfile = null;
+
+        async function main() {
+            await liff.init({ liffId: "2008137674-5cDNlo0N" }); // 使用你剛才測試成功的 ID
+            if (!liff.isLoggedIn()) { liff.login(); }
+            else {
+                userProfile = await liff.getProfile();
+                document.getElementById("userName").innerText = "👋 哈囉，" + userProfile.displayName;
+                fetchMatches(); // 載入現有場次
             }
         }
-        test();
+
+        // 發起揪團邏輯
+        async function createMatch() {
+            const title = document.getElementById("mTitle").value;
+            const max = document.getElementById("mMax").value;
+            if(!title || !max) return alert("請填寫完整");
+
+            await supabase.from('matches').insert([{ title, max_players: max, status: 'open' }]);
+            alert("發布成功！");
+            fetchMatches();
+        }
+
+        // 讀取場次邏輯
+        async function fetchMatches() {
+            const { data: matches } = await supabase.from('matches').select('*').eq('status', 'open');
+            let html = '<h3>📅 目前揪團</h3>';
+            matches.forEach(m => {
+                html += `<div class="card">
+                    <strong>${m.title}</strong><br>上限: ${m.max_players} 人
+                    <button class="btn" onclick="joinMatch('${m.id}')" style="margin-top:10px;">我要報名</button>
+                </div>`;
+            });
+            document.getElementById("matchList").innerHTML = html;
+        }
+
+        // 報名邏輯
+        async function joinMatch(matchId) {
+            await supabase.from('registrations').insert([
+                { match_id: matchId, line_id: userProfile.userId, user_name: userProfile.displayName, status: 'confirmed' }
+            ]);
+            alert("報名完成！");
+        }
+
+        main();
     </script>
 </body>
 </html>
