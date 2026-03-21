@@ -52,10 +52,11 @@
 
         .btn { 
             border: none; padding: 14px; border-radius: 12px; font-weight: 700; 
-            cursor: pointer; width: 100%; font-size: 16px; transition: transform 0.1s;
+            cursor: pointer; width: 100%; font-size: 16px; transition: all 0.2s;
             display: flex; align-items: center; justify-content: center; gap: 8px;
         }
         .btn:active { transform: scale(0.98); }
+        .btn:disabled { background: #d9d9d9 !important; color: #8c8c8c !important; cursor: not-allowed; transform: none; }
         .btn-primary { background: var(--primary); color: white; }
         .btn-warning { background: var(--warning); color: white; }
         .btn-cancel { background: #fff1f0; color: var(--error); border: 1px solid #ffa39e; }
@@ -95,7 +96,7 @@
             <div class="input-group" style="flex: 1;"><label>費用</label><input type="number" id="price" placeholder="金額"></div>
             <div class="input-group" style="flex: 1;"><label>正取上限</label><input type="number" id="max_players" placeholder="上限"></div>
         </div>
-        <button class="btn btn-primary" onclick="postNewEvent()">確認發布</button>
+        <button id="post-btn" class="btn btn-primary" onclick="postNewEvent()">確認發布</button>
     </div>
 
     <h2 style="font-size: 22px; margin: 24px 0 16px 4px;">🔥 熱門活動</h2>
@@ -116,21 +117,17 @@
             await liff.init({ liffId: LIFF_ID });
             if (!liff.isLoggedIn()) { liff.login(); return; }
             myProfile = await liff.getProfile();
-            console.log("LINE 登入成功，用戶 ID:", myProfile.userId);
 
-            // 1. 檢查資料庫是否有此用戶 (使用 maybeSingle 避免找不到資料時報錯)
-            let { data: profile, error: selectError } = await _supabase
+            // 1. 取得用戶資料
+            let { data: profile } = await _supabase
                 .from('profiles')
                 .select('*')
                 .eq('id', myProfile.userId)
                 .maybeSingle();
 
-            if (selectError) console.error("查詢 profiles 失敗:", selectError.message);
-
-            // 2. 如果查無資料，自動建立新用戶
+            // 2. 自動建立新用戶 (包含照片補丁)
             if (!profile) {
-                console.log("資料庫無紀錄，正在為新用戶建立 profiles...");
-                const { data: newProfile, error: insertError } = await _supabase
+                const { data: newProfile } = await _supabase
                     .from('profiles')
                     .insert([{ 
                         id: myProfile.userId, 
@@ -138,38 +135,43 @@
                         picture_url: myProfile.pictureUrl, 
                         role: 'user' 
                     }])
-                    .select()
-                    .maybeSingle();
-
-                if (insertError) {
-                    console.error("自動建立 profiles 失敗:", insertError.message);
-                } else {
-                    profile = newProfile;
-                    console.log("新用戶資料已成功寫入資料庫");
-                }
+                    .select().maybeSingle();
+                profile = newProfile;
             }
 
-            // 3. 渲染用戶卡片
+            // 3. UI 渲染
             document.getElementById('user-display').innerHTML = `
                 <img src="${myProfile.pictureUrl}">
                 <div><div style="font-size:12px; color:#8c8c8c">歡迎回來</div><span>${myProfile.displayName}</span></div>
             `;
 
-            // 4. 判斷權限是否顯示管理面板
             if (profile && (profile.role === 'admin' || profile.role === 'organizer')) {
                 isAdmin = true;
                 document.getElementById('admin-panel').style.display = 'block';
-                console.log("管理員權限已解鎖");
             }
 
+            // 4. 初次讀取活動
             loadEvents();
-        } catch (err) { 
-            console.error("LIFF 初始化或主程序錯誤:", err); 
-        }
+
+            // 5. 【即時更新核心】啟動 Realtime 監聽
+            _supabase
+                .channel('any_change')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'registrations' }, () => loadEvents())
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, () => loadEvents())
+                .subscribe();
+
+        } catch (err) { console.error("初始化失敗:", err); }
     }
 
     async function loadEvents() {
-        const { data: events } = await _supabase.from('events').select('*').order('date_time', { ascending: true });
+        // 優化：只顯示未來 24 小時內的過期場次或所有未來場次
+        const now = new Date().toISOString();
+        const { data: events } = await _supabase
+            .from('events')
+            .select('*')
+            .gt('date_time', new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()) // 顯示 6 小時內的過期場次，之後隱藏
+            .order('date_time', { ascending: true });
+
         const { data: regs } = await _supabase.from('registrations').select('*').order('created_at', { ascending: true });
         const listDiv = document.getElementById('event-list');
         
@@ -188,7 +190,7 @@
                 <div class="event-card">
                     <div class="event-header">
                         <h3>${ev.title}</h3>
-                        ${isAdmin ? `<span class="del-link" onclick="deleteEvent(${ev.id}, '${ev.title}')">刪除活動</span>` : ''}
+                        ${isAdmin ? `<span class="del-link" onclick="deleteEvent(${ev.id}, '${ev.title}', this)">刪除活動</span>` : ''}
                     </div>
                     
                     <div class="event-info">📍 ${ev.location}</div>
@@ -197,7 +199,7 @@
                     <div class="event-info">💰 費用 <span style="color:#f5222d; font-weight:700; margin-left:4px">$${ev.price}</span></div>
                     
                     <div class="admin-section">
-                        <span class="admin-section-title">📋 報名名單</span>
+                        <span class="admin-section-title">📋 報名名單 (即時更新中)</span>
                         <div>
                             ${currentRegs.length > 0 
                                 ? currentRegs.map((r, index) => {
@@ -214,9 +216,9 @@
 
                     <div style="margin-top:20px">
                         ${amIJoined 
-                            ? `<button class="btn btn-cancel" onclick="cancelEvent(${ev.id})">取消報名</button>` 
+                            ? `<button class="btn btn-cancel" onclick="cancelEvent(${ev.id}, this)">取消報名</button>` 
                             : `<button class="btn ${isFull ? 'btn-warning' : 'btn-primary'}" 
-                                       onclick="joinEvent(${ev.id})">
+                                       onclick="joinEvent(${ev.id}, this)">
                                        ${isFull ? '加入候補' : '立即報名'}
                                </button>`
                         }
@@ -226,47 +228,71 @@
         }).join('');
     }
 
+    // --- 功能函式 (含 Loading 處理) ---
+
     async function postNewEvent() {
+        const btn = document.getElementById('post-btn');
         const rawDate = document.getElementById('date_time').value;
         if(!rawDate) return alert("請選擇時間");
-        const isoDate = new Date(rawDate).toISOString();
+
+        btn.disabled = true;
+        btn.innerText = "發布中...";
 
         const { error } = await _supabase.from('events').insert([{
             title: document.getElementById('title').value,
-            date_time: isoDate,
+            date_time: new Date(rawDate).toISOString(),
             duration: parseFloat(document.getElementById('duration').value) || 0,
             location: document.getElementById('location').value,
             price: parseInt(document.getElementById('price').value) || 0,
             max_players: parseInt(document.getElementById('max_players').value) || 0,
             organizer_id: myProfile.userId
         }]);
-        if (error) alert("發布失敗: " + error.message); else location.reload();
+
+        if (error) {
+            alert("發布失敗: " + error.message);
+            btn.disabled = false;
+            btn.innerText = "確認發布";
+        } else {
+            // 清空表單
+            document.getElementById('title').value = "";
+            btn.disabled = false;
+            btn.innerText = "確認發布";
+        }
     }
 
-    async function joinEvent(eventId) {
+    async function joinEvent(eventId, btn) {
+        btn.disabled = true;
+        btn.innerText = "處理中...";
+        
         const { error } = await _supabase.from('registrations').insert([{
             event_id: eventId, user_id: myProfile.userId, user_name: myProfile.displayName
         }]);
-        if (error) alert("報名失敗: " + error.message); else location.reload();
+
+        if (error) {
+            alert("報名失敗: " + error.message);
+            btn.disabled = false;
+            btn.innerText = "立即報名";
+        }
+        // 成功後不需要 location.reload()，Realtime 會自動更新 UI
     }
 
-    async function cancelEvent(eventId) {
+    async function cancelEvent(eventId, btn) {
         if (!confirm(`確定取消報名？`)) return;
+        btn.disabled = true;
+        btn.innerText = "取消中...";
         await _supabase.from('registrations').delete().eq('event_id', eventId).eq('user_id', myProfile.userId);
-        location.reload();
     }
 
-    async function deleteEvent(eventId, title) {
+    async function deleteEvent(eventId, title, span) {
         if (!confirm(`確定刪除整個【${title}】場次？`)) return;
+        span.innerText = "刪除中...";
         await _supabase.from('registrations').delete().eq('event_id', eventId);
         await _supabase.from('events').delete().eq('id', eventId);
-        location.reload();
     }
 
     async function adminKick(eventId, userId, userName) {
         if (!confirm(`移除球友【${userName}】？`)) return;
         await _supabase.from('registrations').delete().eq('event_id', eventId).eq('user_id', userId);
-        loadEvents();
     }
 
     main();
