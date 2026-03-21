@@ -9,65 +9,76 @@
     <style>
         body { font-family: -apple-system, sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; padding: 20px; }
         .container { background: white; width: 100%; max-width: 400px; border-radius: 20px; padding: 25px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); text-align: center; }
-        .user-box { background: #e8f5e9; padding: 12px; border-radius: 10px; margin-bottom: 20px; font-weight: bold; color: #2e7d32; }
+        .user-box { background: #e8f5e9; padding: 12px; border-radius: 10px; margin-bottom: 20px; font-weight: bold; color: #2e7d32; min-height: 24px; }
         .match-card { border: 1px solid #eee; padding: 20px; border-radius: 15px; background: #fff; text-align: left; }
         .btn { background: #00B900; color: white; border: none; width: 100%; padding: 15px; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 10px; }
-        .status-tag { font-size: 11px; color: #888; margin-top: 15px; padding: 8px; background: #f0f0f0; border-radius: 5px; word-break: break-all; }
+        .btn:disabled { background: #ccc; }
+        .status-tag { font-size: 11px; color: #888; margin-top: 15px; padding: 8px; background: #f0f0f0; border-radius: 5px; }
     </style>
 </head>
 <body>
     <div class="container">
         <h2 style="color: #00B900;">必IN 臨打小助手</h2>
-        <div id="userName" class="user-box">身份辨識中...</div>
+        <div id="userName" class="user-box">身分讀取中...</div>
 
         <div class="match-card">
-            <strong>週六下午羽球團 (測試)</strong><br>
+            <strong>週六下午羽球團 (測試場次)</strong><br>
             <p style="color: #666; margin: 10px 0;">📍 地點：必IN羽球館<br>💰 費用：$250 / 人</p>
             <button class="btn" id="regBtn" onclick="register()">我要報名 (+1)</button>
         </div>
         
-        <div id="statusInfo" class="status-tag">系統準備中...</div>
+        <div id="statusInfo" class="status-tag">系統初始化中...</div>
     </div>
 
     <script>
-        // 1. 填入您的正確資訊
+        // 1. 核心參數 (確認與後台一致)
         const supabaseUrl = 'https://vdhqcyjjxzljelqpkyuo.supabase.co';
         const supabaseKey = 'sb_publishable_Q25ZWq1J0VYL7SVJbGVRHg_YVj--rkd';
-        const liffId = '2008137674-5cDNlo0N'; 
+        const liffId = '2008137674-5cDNlo0N';
 
         const supabase = supabaseJs.createClient(supabaseUrl, supabaseKey);
         let userProfile = null;
 
-        // 2. 啟動 LINE 引擎
+        // 2. 加強版啟動流程
         async function startApp() {
             const status = document.getElementById("statusInfo");
+            const nameBox = document.getElementById("userName");
+
             try {
-                status.innerText = "狀態：連線 LINE 伺服器...";
+                status.innerText = "狀態：正在啟動 LINE 引擎...";
                 await liff.init({ liffId: liffId });
-                
+
+                // 關鍵修正：強制檢查登入，若無登入則執行跳轉
                 if (!liff.isLoggedIn()) {
-                    status.innerText = "狀態：引導登入中...";
+                    status.innerText = "狀態：引導 LINE 登入中...";
                     liff.login();
                 } else {
+                    status.innerText = "狀態：正在獲取個人資料...";
                     userProfile = await liff.getProfile();
-                    document.getElementById("userName").innerText = "👋 哈囉，" + userProfile.displayName;
-                    status.innerText = "狀態：系統就緒 (已連線)";
+                    nameBox.innerText = "👋 哈囉，" + userProfile.displayName;
+                    status.innerText = "狀態：系統就緒";
                 }
             } catch (err) {
-                status.innerText = "連線失敗：" + err.message;
+                status.innerText = "系統錯誤：" + err.message;
+                nameBox.innerText = "❌ 辨識失敗";
+                console.error("LIFF Init Error:", err);
             }
         }
+
+        // 啟動
         startApp();
 
-        // 3. 報名動作
+        // 3. 報名邏輯
         async function register() {
-            if (!userProfile) return alert("尚未讀取身份，請重新整理頁面。");
+            if (!userProfile) {
+                alert("尚未完成身份辨識，請稍候。");
+                return;
+            }
             
             const btn = document.getElementById("regBtn");
             btn.disabled = true;
-            btn.innerText = "傳送中...";
+            btn.innerText = "正在傳送資料...";
 
-            // 寫入資料表
             const { error } = await supabase.from('registrations').insert([
                 { 
                     line_id: userProfile.userId, 
