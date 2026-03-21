@@ -11,7 +11,7 @@
         :root { 
             --primary: #00b900; 
             --primary-dark: #009800;
-            --warning: #faad14; /* 候補專用橘色 */
+            --warning: #faad14;
             --error: #ff4d4f; 
             --bg: #f0f2f5; 
             --card-bg: #ffffff;
@@ -57,7 +57,7 @@
         }
         .btn:active { transform: scale(0.98); }
         .btn-primary { background: var(--primary); color: white; }
-        .btn-warning { background: var(--warning); color: white; } /* 候補按鈕 */
+        .btn-warning { background: var(--warning); color: white; }
         .btn-cancel { background: #fff1f0; color: var(--error); border: 1px solid #ffa39e; }
 
         .event-card { 
@@ -75,7 +75,6 @@
             display: inline-flex; align-items: center; background: white; border: 1px solid #e8e8e8;
             padding: 4px 10px; border-radius: 6px; margin: 0 6px 6px 0; font-size: 13px;
         }
-        /* 候補標籤樣式 */
         .wait-tag { border-color: var(--warning); color: var(--warning); background: #fffbe6; }
         .kick-x { margin-left: 6px; color: var(--error); cursor: pointer; font-weight: bold; }
         .del-link { color: var(--error); font-size: 12px; cursor: pointer; opacity: 0.6; }
@@ -94,7 +93,7 @@
         <div class="input-group"><label>地點</label><input type="text" id="location" placeholder="球館名稱與場地號碼"></div>
         <div style="display: flex; gap: 12px;">
             <div class="input-group" style="flex: 1;"><label>費用</label><input type="number" id="price" placeholder="金額"></div>
-            <div class="input-group" style="flex: 1;"><label>人數上限</label><input type="number" id="max_players" placeholder="上限"></div>
+            <div class="input-group" style="flex: 1;"><label>正取上限</label><input type="number" id="max_players" placeholder="上限"></div>
         </div>
         <button class="btn btn-primary" onclick="postNewEvent()">確認發布</button>
     </div>
@@ -143,7 +142,7 @@
 
     async function loadEvents() {
         const { data: events } = await _supabase.from('events').select('*').order('date_time', { ascending: true });
-        // 重要：報名表必須依照建立時間排序，候補順序才不會亂掉
+        // 核心：依據報名時間排序實現自動遞補功能
         const { data: regs } = await _supabase.from('registrations').select('*').order('created_at', { ascending: true });
         const listDiv = document.getElementById('event-list');
         
@@ -162,16 +161,16 @@
                 <div class="event-card">
                     <div class="event-header">
                         <h3>${ev.title}</h3>
-                        ${isAdmin ? `<span class="del-link" onclick="deleteEvent(${ev.id}, '${ev.title}')">刪除</span>` : ''}
+                        ${isAdmin ? `<span class="del-link" onclick="deleteEvent(${ev.id}, '${ev.title}')">刪除活動</span>` : ''}
                     </div>
                     
                     <div class="event-info">📍 ${ev.location}</div>
                     <div class="event-info">⏰ ${new Date(ev.date_time).toLocaleString('zh-TW', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false})} (${ev.duration || 0}小時)</div>
-                    <div class="event-info">👥 報名狀況 <span style="color:var(--primary); font-weight:700; margin-left:4px">${Math.min(count, ev.max_players)} / ${ev.max_players}</span> ${count > ev.max_players ? `<span style="color:var(--warning); font-size:12px; margin-left:8px">(候補中: ${count - ev.max_players})</span>` : ''}</div>
+                    <div class="event-info">👥 報名狀況 <span style="color:var(--primary); font-weight:700; margin-left:4px">${Math.min(count, ev.max_players)} / ${ev.max_players}</span> ${count > ev.max_players ? `<span style="color:var(--warning); font-size:12px; margin-left:8px">(候補: ${count - ev.max_players})</span>` : ''}</div>
                     <div class="event-info">💰 費用 <span style="color:#f5222d; font-weight:700; margin-left:4px">$${ev.price}</span></div>
                     
                     <div class="admin-section">
-                        <span class="admin-section-title">📋 參與名單</span>
+                        <span class="admin-section-title">📋 報名名單</span>
                         <div>
                             ${currentRegs.length > 0 
                                 ? currentRegs.map((r, index) => {
@@ -188,9 +187,9 @@
 
                     <div style="margin-top:20px">
                         ${amIJoined 
-                            ? `<button class="btn btn-cancel" onclick="cancelEvent(${ev.id}, '${ev.title}')">取消報名</button>` 
+                            ? `<button class="btn btn-cancel" onclick="cancelEvent(${ev.id})">取消報名</button>` 
                             : `<button class="btn ${isFull ? 'btn-warning' : 'btn-primary'}" 
-                                       onclick="joinEvent(${ev.id}, '${ev.title}')">
+                                       onclick="joinEvent(${ev.id})">
                                        ${isFull ? '加入候補' : '立即報名'}
                                </button>`
                         }
@@ -202,7 +201,7 @@
 
     async function postNewEvent() {
         const rawDate = document.getElementById('date_time').value;
-        if(!rawDate) { alert("請選擇時間"); return; }
+        if(!rawDate) return alert("請選擇時間");
         const isoDate = new Date(rawDate).toISOString();
 
         const { error } = await _supabase.from('events').insert([{
@@ -210,35 +209,35 @@
             date_time: isoDate,
             duration: parseFloat(document.getElementById('duration').value) || 0,
             location: document.getElementById('location').value,
-            price: parseInt(document.getElementById('price').value),
-            max_players: parseInt(document.getElementById('max_players').value),
+            price: parseInt(document.getElementById('price').value) || 0,
+            max_players: parseInt(document.getElementById('max_players').value) || 0,
             organizer_id: myProfile.userId
         }]);
         if (error) alert("發布失敗: " + error.message); else location.reload();
     }
 
-    async function joinEvent(eventId, title) {
+    async function joinEvent(eventId) {
         const { error } = await _supabase.from('registrations').insert([{
             event_id: eventId, user_id: myProfile.userId, user_name: myProfile.displayName
         }]);
         if (error) alert("報名失敗: " + error.message); else location.reload();
     }
 
-    async function cancelEvent(eventId, title) {
+    async function cancelEvent(eventId) {
         if (!confirm(`確定取消報名？`)) return;
         await _supabase.from('registrations').delete().eq('event_id', eventId).eq('user_id', myProfile.userId);
         location.reload();
     }
 
     async function deleteEvent(eventId, title) {
-        if (!confirm(`確定刪除【${title}】？`)) return;
+        if (!confirm(`確定刪除整個【${title}】場次？`)) return;
         await _supabase.from('registrations').delete().eq('event_id', eventId);
         await _supabase.from('events').delete().eq('id', eventId);
         location.reload();
     }
 
     async function adminKick(eventId, userId, userName) {
-        if (!confirm(`移除【${userName}】？`)) return;
+        if (!confirm(`移除球友【${userName}】？`)) return;
         await _supabase.from('registrations').delete().eq('event_id', eventId).eq('user_id', userId);
         loadEvents();
     }
