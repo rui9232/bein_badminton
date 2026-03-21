@@ -11,6 +11,7 @@
         :root { 
             --primary: #00b900; 
             --primary-dark: #009800;
+            --warning: #faad14; /* 候補專用橘色 */
             --error: #ff4d4f; 
             --bg: #f0f2f5; 
             --card-bg: #ffffff;
@@ -21,103 +22,61 @@
         body { 
             font-family: 'Noto Sans TC', -apple-system, sans-serif; 
             background-color: var(--bg); 
-            margin: 0; 
-            padding: 16px;
-            color: var(--text-main);
-            line-height: 1.6;
+            margin: 0; padding: 16px;
+            color: var(--text-main); line-height: 1.6;
         }
 
         .container { max-width: 480px; margin: 0 auto; }
 
-        /* 用戶資訊卡片 */
         .user-card { 
-            display: flex; 
-            align-items: center; 
-            background: var(--card-bg); 
-            padding: 12px 20px; 
-            border-radius: 16px; 
-            margin-bottom: 24px; 
+            display: flex; align-items: center; background: var(--card-bg); 
+            padding: 12px 20px; border-radius: 16px; margin-bottom: 24px; 
             box-shadow: 0 4px 12px rgba(0,0,0,0.05); 
         }
-        .user-card img { 
-            width: 44px; height: 44px; 
-            border-radius: 50%; 
-            margin-right: 12px; 
-            border: 2px solid var(--primary); 
-        }
+        .user-card img { width: 44px; height: 44px; border-radius: 50%; margin-right: 12px; border: 2px solid var(--primary); }
         .user-card span { font-weight: 500; font-size: 16px; }
 
-        /* 管理面板 */
         #admin-panel { 
-            display: none; 
-            background: var(--card-bg); 
-            padding: 24px; 
-            border-radius: 20px; 
-            margin-bottom: 30px; 
-            box-shadow: 0 8px 24px rgba(0,0,0,0.08);
-            border: 1px solid rgba(0,185,0,0.2);
+            display: none; background: var(--card-bg); padding: 24px; border-radius: 20px; 
+            margin-bottom: 30px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); border: 1px solid rgba(0,185,0,0.2);
         }
         #admin-panel h3 { margin: 0 0 16px 0; color: var(--primary); font-size: 18px; }
         
         .input-group { margin-bottom: 12px; }
         label { font-size: 13px; color: var(--text-sub); display: block; margin-bottom: 4px; }
         input { 
-            width: 100%; padding: 12px; 
-            border: 1px solid #e8e8e8; 
-            border-radius: 10px; 
-            box-sizing: border-box; 
-            font-size: 15px; 
-            transition: all 0.3s;
+            width: 100%; padding: 12px; border: 1px solid #e8e8e8; border-radius: 10px; 
+            box-sizing: border-box; font-size: 15px; transition: all 0.3s;
         }
         input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(0,185,0,0.1); }
 
-        /* 按鈕基礎 */
         .btn { 
-            border: none; padding: 14px; 
-            border-radius: 12px; 
-            font-weight: 700; 
-            cursor: pointer; 
-            width: 100%; 
-            font-size: 16px; 
-            transition: transform 0.1s, opacity 0.2s;
+            border: none; padding: 14px; border-radius: 12px; font-weight: 700; 
+            cursor: pointer; width: 100%; font-size: 16px; transition: transform 0.1s;
             display: flex; align-items: center; justify-content: center; gap: 8px;
         }
         .btn:active { transform: scale(0.98); }
         .btn-primary { background: var(--primary); color: white; }
+        .btn-warning { background: var(--warning); color: white; } /* 候補按鈕 */
         .btn-cancel { background: #fff1f0; color: var(--error); border: 1px solid #ffa39e; }
-        .btn-disabled { background: #f5f5f5; color: #bfbfbf; cursor: not-allowed; }
 
-        /* 活動卡片 */
         .event-card { 
-            background: var(--card-bg); 
-            padding: 20px; 
-            border-radius: 20px; 
-            margin-bottom: 20px; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
-            position: relative;
-            overflow: hidden;
+            background: var(--card-bg); padding: 20px; border-radius: 20px; 
+            margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); position: relative; overflow: hidden;
         }
-        .event-card::before {
-            content: ""; position: absolute; top: 0; left: 0; width: 6px; height: 100%; background: var(--primary);
-        }
+        .event-card::before { content: ""; position: absolute; top: 0; left: 0; width: 6px; height: 100%; background: var(--primary); }
         .event-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
         .event-card h3 { margin: 0; font-size: 19px; color: #1a1a1a; }
         .event-info { font-size: 14px; color: #595959; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
         
-        /* 報名名單 */
-        .admin-section { 
-            background: #f8f9fa; 
-            padding: 14px; 
-            border-radius: 12px; 
-            margin: 16px 0; 
-        }
+        .admin-section { background: #f8f9fa; padding: 14px; border-radius: 12px; margin: 16px 0; }
         .admin-section-title { font-size: 13px; font-weight: 700; color: #595959; margin-bottom: 8px; display: block; }
         .player-tag { 
-            display: inline-flex; align-items: center; 
-            background: white; border: 1px solid #e8e8e8;
-            padding: 4px 10px; border-radius: 6px; 
-            margin: 0 6px 6px 0; font-size: 13px;
+            display: inline-flex; align-items: center; background: white; border: 1px solid #e8e8e8;
+            padding: 4px 10px; border-radius: 6px; margin: 0 6px 6px 0; font-size: 13px;
         }
+        /* 候補標籤樣式 */
+        .wait-tag { border-color: var(--warning); color: var(--warning); background: #fffbe6; }
         .kick-x { margin-left: 6px; color: var(--error); cursor: pointer; font-weight: bold; }
         .del-link { color: var(--error); font-size: 12px; cursor: pointer; opacity: 0.6; }
     </style>
@@ -129,31 +88,13 @@
 
     <div id="admin-panel">
         <h3>🏸 建立新場次</h3>
-        <div class="input-group">
-            <label>活動名稱</label>
-            <input type="text" id="title" placeholder="例如：週六下午熱血團">
-        </div>
-        <div class="input-group">
-            <label>日期與開始時間</label>
-            <input type="datetime-local" id="date_time">
-        </div>
-        <div class="input-group">
-            <label>打球時長 (小時)</label>
-            <input type="number" id="duration" step="0.5" placeholder="例如：2">
-        </div>
-        <div class="input-group">
-            <label>地點</label>
-            <input type="text" id="location" placeholder="球館名稱與場地號碼">
-        </div>
+        <div class="input-group"><label>活動名稱</label><input type="text" id="title" placeholder="例如：週六下午熱血團"></div>
+        <div class="input-group"><label>日期與開始時間</label><input type="datetime-local" id="date_time"></div>
+        <div class="input-group"><label>打球時長 (小時)</label><input type="number" id="duration" step="0.5" placeholder="例如：2"></div>
+        <div class="input-group"><label>地點</label><input type="text" id="location" placeholder="球館名稱與場地號碼"></div>
         <div style="display: flex; gap: 12px;">
-            <div class="input-group" style="flex: 1;">
-                <label>費用</label>
-                <input type="number" id="price" placeholder="金額">
-            </div>
-            <div class="input-group" style="flex: 1;">
-                <label>人數上限</label>
-                <input type="number" id="max_players" placeholder="上限">
-            </div>
+            <div class="input-group" style="flex: 1;"><label>費用</label><input type="number" id="price" placeholder="金額"></div>
+            <div class="input-group" style="flex: 1;"><label>人數上限</label><input type="number" id="max_players" placeholder="上限"></div>
         </div>
         <button class="btn btn-primary" onclick="postNewEvent()">確認發布</button>
     </div>
@@ -177,46 +118,33 @@
             if (!liff.isLoggedIn()) { liff.login(); return; }
             myProfile = await liff.getProfile();
 
-            let { data: profile } = await _supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', myProfile.userId)
-                .single();
+            let { data: profile } = await _supabase.from('profiles').select('*').eq('id', myProfile.userId).single();
 
             if (!profile) {
-                const { data: newProfile } = await _supabase
-                    .from('profiles')
-                    .insert([{ 
-                        id: myProfile.userId, 
-                        display_name: myProfile.displayName, 
-                        picture_url: myProfile.pictureUrl,
-                        role: 'user' 
-                    }])
-                    .select().single();
+                const { data: newProfile } = await _supabase.from('profiles').insert([{ 
+                    id: myProfile.userId, display_name: myProfile.displayName, 
+                    picture_url: myProfile.pictureUrl, role: 'user' 
+                }]).select().single();
                 profile = newProfile;
             }
 
             document.getElementById('user-display').innerHTML = `
                 <img src="${myProfile.pictureUrl}">
-                <div>
-                    <div style="font-size:12px; color:#8c8c8c">歡迎回來</div>
-                    <span>${myProfile.displayName}</span>
-                </div>
+                <div><div style="font-size:12px; color:#8c8c8c">歡迎回來</div><span>${myProfile.displayName}</span></div>
             `;
 
-            // 判斷權限
             if (profile && (profile.role === 'admin' || profile.role === 'organizer')) {
                 isAdmin = true;
                 document.getElementById('admin-panel').style.display = 'block';
             }
-
             loadEvents();
         } catch (err) { console.error(err); }
     }
 
     async function loadEvents() {
         const { data: events } = await _supabase.from('events').select('*').order('date_time', { ascending: true });
-        const { data: regs } = await _supabase.from('registrations').select('*');
+        // 重要：報名表必須依照建立時間排序，候補順序才不會亂掉
+        const { data: regs } = await _supabase.from('registrations').select('*').order('created_at', { ascending: true });
         const listDiv = document.getElementById('event-list');
         
         if (!events || events.length === 0) {
@@ -239,31 +167,31 @@
                     
                     <div class="event-info">📍 ${ev.location}</div>
                     <div class="event-info">⏰ ${new Date(ev.date_time).toLocaleString('zh-TW', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false})} (${ev.duration || 0}小時)</div>
-                    <div class="event-info">👥 報名人數 <span style="color:var(--primary); font-weight:700; margin-left:4px">${count} / ${ev.max_players}</span></div>
+                    <div class="event-info">👥 報名狀況 <span style="color:var(--primary); font-weight:700; margin-left:4px">${Math.min(count, ev.max_players)} / ${ev.max_players}</span> ${count > ev.max_players ? `<span style="color:var(--warning); font-size:12px; margin-left:8px">(候補中: ${count - ev.max_players})</span>` : ''}</div>
                     <div class="event-info">💰 費用 <span style="color:#f5222d; font-weight:700; margin-left:4px">$${ev.price}</span></div>
                     
-                    ${isAdmin ? `
-                        <div class="admin-section">
-                            <span class="admin-section-title">📋 報名名單</span>
-                            <div>
-                                ${currentRegs.length > 0 
-                                    ? currentRegs.map(r => `
-                                        <span class="player-tag">
-                                            ${r.user_name} 
-                                            <span class="kick-x" onclick="adminKick('${ev.id}', '${r.user_id}', '${r.user_name}')">×</span>
-                                        </span>`).join('')
-                                    : '<span style="color:#bfbfbf; font-size:12px">尚無人報名</span>'}
-                            </div>
+                    <div class="admin-section">
+                        <span class="admin-section-title">📋 參與名單</span>
+                        <div>
+                            ${currentRegs.length > 0 
+                                ? currentRegs.map((r, index) => {
+                                    const isWaiting = index >= ev.max_players;
+                                    return `
+                                        <span class="player-tag ${isWaiting ? 'wait-tag' : ''}">
+                                            ${isWaiting ? '[候] ' : ''}${r.user_name} 
+                                            ${isAdmin ? `<span class="kick-x" onclick="adminKick('${ev.id}', '${r.user_id}', '${r.user_name}')">×</span>` : ''}
+                                        </span>`;
+                                  }).join('')
+                                : '<span style="color:#bfbfbf; font-size:12px">尚無人報名</span>'}
                         </div>
-                    ` : ''}
+                    </div>
 
                     <div style="margin-top:20px">
                         ${amIJoined 
                             ? `<button class="btn btn-cancel" onclick="cancelEvent(${ev.id}, '${ev.title}')">取消報名</button>` 
-                            : `<button class="btn ${isFull ? 'btn-disabled' : 'btn-primary'}" 
-                                       onclick="${isFull ? '' : `joinEvent(${ev.id}, '${ev.title}')`}" 
-                                       ${isFull ? 'disabled' : ''}>
-                                       ${isFull ? '名額已滿' : '立即報名'}
+                            : `<button class="btn ${isFull ? 'btn-warning' : 'btn-primary'}" 
+                                       onclick="joinEvent(${ev.id}, '${ev.title}')">
+                                       ${isFull ? '加入候補' : '立即報名'}
                                </button>`
                         }
                     </div>
@@ -275,40 +203,37 @@
     async function postNewEvent() {
         const rawDate = document.getElementById('date_time').value;
         if(!rawDate) { alert("請選擇時間"); return; }
-
-        // 核心修復：使用 toISOString() 解決時區偏移問題
         const isoDate = new Date(rawDate).toISOString();
 
         const { error } = await _supabase.from('events').insert([{
             title: document.getElementById('title').value,
             date_time: isoDate,
-            duration: parseFloat(document.getElementById('duration').value) || 0, // 新增時長參數
+            duration: parseFloat(document.getElementById('duration').value) || 0,
             location: document.getElementById('location').value,
             price: parseInt(document.getElementById('price').value),
             max_players: parseInt(document.getElementById('max_players').value),
             organizer_id: myProfile.userId
         }]);
-
         if (error) alert("發布失敗: " + error.message); else location.reload();
+    }
+
+    async function joinEvent(eventId, title) {
+        const { error } = await _supabase.from('registrations').insert([{
+            event_id: eventId, user_id: myProfile.userId, user_name: myProfile.displayName
+        }]);
+        if (error) alert("報名失敗: " + error.message); else location.reload();
+    }
+
+    async function cancelEvent(eventId, title) {
+        if (!confirm(`確定取消報名？`)) return;
+        await _supabase.from('registrations').delete().eq('event_id', eventId).eq('user_id', myProfile.userId);
+        location.reload();
     }
 
     async function deleteEvent(eventId, title) {
         if (!confirm(`確定刪除【${title}】？`)) return;
         await _supabase.from('registrations').delete().eq('event_id', eventId);
         await _supabase.from('events').delete().eq('id', eventId);
-        location.reload();
-    }
-
-    async function joinEvent(eventId, title) {
-        await _supabase.from('registrations').insert([{
-            event_id: eventId, user_id: myProfile.userId, user_name: myProfile.displayName
-        }]);
-        location.reload();
-    }
-
-    async function cancelEvent(eventId, title) {
-        if (!confirm(`確定取消報名？`)) return;
-        await _supabase.from('registrations').delete().eq('event_id', eventId).eq('user_id', myProfile.userId);
         location.reload();
     }
 
