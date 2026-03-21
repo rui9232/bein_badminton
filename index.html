@@ -31,53 +31,46 @@
     </div>
 
     <script>
-        // 1. 核心參數 (確認與後台一致)
-        const supabaseUrl = 'https://vdhqcyjjxzljelqpkyuo.supabase.co';
-        const supabaseKey = 'sb_publishable_Q25ZWq1J0VYL7SVJbGVRHg_YVj--rkd';
-        const liffId = '2008137674-5cDNlo0N';
+        // 1. 基本設定 (確認與截圖一致)
+        const SB_URL = 'https://vdhqcyjjxzljelqpkyuo.supabase.co';
+        const SB_KEY = 'sb_publishable_Q25ZWq1J0VYL7SVJbGVRHg_YVj--rkd';
+        const L_ID = '2008137674-5cDNlo0N';
 
-        const supabase = supabaseJs.createClient(supabaseUrl, supabaseKey);
+        // 建立 Supabase 客戶端 (僅宣告一次)
+        const supabase = supabaseJs.createClient(SB_URL, SB_KEY);
         let userProfile = null;
 
-        // 2. 加強版啟動流程
         async function startApp() {
             const status = document.getElementById("statusInfo");
             const nameBox = document.getElementById("userName");
 
             try {
-                status.innerText = "狀態：正在啟動 LINE 引擎...";
-                await liff.init({ liffId: liffId });
+                status.innerText = "狀態：啟動 LINE 引擎...";
+                await liff.init({ liffId: L_ID });
 
-                // 關鍵修正：強制檢查登入，若無登入則執行跳轉
                 if (!liff.isLoggedIn()) {
-                    status.innerText = "狀態：引導 LINE 登入中...";
                     liff.login();
                 } else {
-                    status.innerText = "狀態：正在獲取個人資料...";
                     userProfile = await liff.getProfile();
                     nameBox.innerText = "👋 哈囉，" + userProfile.displayName;
                     status.innerText = "狀態：系統就緒";
                 }
             } catch (err) {
-                status.innerText = "系統錯誤：" + err.message;
-                nameBox.innerText = "❌ 辨識失敗";
-                console.error("LIFF Init Error:", err);
+                status.innerText = "初始化失敗：" + err.message;
+                console.error(err);
             }
         }
 
-        // 啟動
+        // 執行初始化
         startApp();
 
-        // 3. 報名邏輯
+        // 報名功能
         async function register() {
-            if (!userProfile) {
-                alert("尚未完成身份辨識，請稍候。");
-                return;
-            }
+            if (!userProfile) return alert("尚未辨識身分");
             
             const btn = document.getElementById("regBtn");
             btn.disabled = true;
-            btn.innerText = "正在傳送資料...";
+            btn.innerText = "正在傳送...";
 
             const { error } = await supabase.from('registrations').insert([
                 { 
@@ -88,7 +81,7 @@
             ]);
 
             if (error) {
-                alert("報名失敗：" + error.message);
+                alert("錯誤：" + error.message);
                 btn.disabled = false;
                 btn.innerText = "我要報名 (+1)";
             } else {
