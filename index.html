@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>必IN臨打報名系統</title>
+    <title>羽球臨打報名系統 - 團主後台版</title>
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -11,60 +11,52 @@
         body { font-family: -apple-system, sans-serif; background-color: var(--bg-color); margin: 0; padding: 20px; }
         .container { max-width: 500px; margin: 0 auto; }
         
-        /* 用戶資訊卡片 */
         .user-card { display: flex; align-items: center; background: white; padding: 10px 20px; border-radius: 50px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         .user-card img { width: 40px; height: 40px; border-radius: 50%; margin-right: 12px; border: 2px solid var(--primary-color); }
         
-        /* 管理員面板 */
         #admin-panel { display: none; background: white; padding: 20px; border-radius: 15px; border: 2px solid var(--primary-color); margin-bottom: 25px; }
         .form-group { margin-bottom: 10px; }
         input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; margin-top: 5px; }
         
-        /* 按鈕樣式 */
         .btn { border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; font-size: 16px; margin-top: 10px; }
         .btn-primary { background-color: var(--primary-color); color: white; }
         .btn-cancel { background-color: var(--error-color); color: white; }
         .btn-disabled { background-color: #ccc; color: #666; cursor: not-allowed; }
         
-        /* 活動卡片 */
         .event-card { background: white; padding: 20px; border-radius: 15px; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); border-left: 6px solid var(--primary-color); }
-        .event-card.full { border-left-color: #ccc; }
         .event-card h3 { margin: 0 0 10px 0; color: #333; }
         .event-card p { margin: 5px 0; font-size: 14px; color: #666; }
-        .count-tag { font-weight: bold; color: var(--primary-color); }
+        
+        /* 團主名單專用樣式 */
+        .admin-list-box { background: #f9f9f9; padding: 12px; border-radius: 10px; margin: 15px 0; font-size: 14px; border: 1px dashed #ddd; }
+        .admin-list-box ul { margin: 8px 0 0 0; padding-left: 20px; }
+        .admin-list-box li { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .kick-btn { color: var(--error-color); font-weight: bold; padding: 2px 8px; cursor: pointer; border: 1px solid var(--error-color); border-radius: 4px; font-size: 12px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <div id="user-display" class="user-card">
-        <span>連線中...</span>
-    </div>
+    <div id="user-display" class="user-card"><span>連線中...</span></div>
 
     <div id="admin-panel">
-        <h3 style="margin-top:0;">🏸 新增臨打活動</h3>
-        <div class="form-group">
-            <input type="text" id="title" placeholder="活動名稱 (例：週六下午羽球)">
-        </div>
-        <div class="form-group">
-            <input type="datetime-local" id="date_time">
-        </div>
-        <div class="form-group">
-            <input type="text" id="location" placeholder="地點 (例：板橋運動中心)">
-        </div>
+        <h3 style="margin-top:0;">🏸 發布新臨打活動</h3>
+        <input type="text" id="title" placeholder="活動名稱">
+        <input type="datetime-local" id="date_time">
+        <input type="text" id="location" placeholder="地點">
         <div style="display: flex; gap: 10px;">
-            <input type="number" id="price" placeholder="費用" style="flex:1;">
-            <input type="number" id="max_players" placeholder="人數上限" style="flex:1;">
+            <input type="number" id="price" placeholder="費用">
+            <input type="number" id="max_players" placeholder="人數上限">
         </div>
         <button class="btn btn-primary" onclick="postNewEvent()">發布活動</button>
     </div>
 
-    <h2>🔥 近期活動列表</h2>
-    <div id="event-list">讀取活動中...</div>
+    <h2>🔥 活動列表</h2>
+    <div id="event-list">讀取中...</div>
 </div>
 
 <script>
-    // --- ⚠ 請在此填入你的資訊 ---
+   // --- ⚠ 請在此填入你的資訊 ---
         const SUPABASE_URL = 'https://vdhqcyjjxzljelqpkyuo.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_Q25ZWq1J0VYL7SVJbGVRHg_YVj--rkd';
         const LIFF_ID = '2008137674-5cDNlo0N';
@@ -72,14 +64,12 @@
 
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     let myProfile = null;
+    let isAdmin = false;
 
     async function main() {
         try {
             await liff.init({ liffId: LIFF_ID });
-            if (!liff.isLoggedIn()) {
-                liff.login();
-                return;
-            }
+            if (!liff.isLoggedIn()) { liff.login(); return; }
 
             myProfile = await liff.getProfile();
             document.getElementById('user-display').innerHTML = `
@@ -87,30 +77,19 @@
                 <span>你好，${myProfile.displayName}</span>
             `;
 
-            // 1. 同步用戶資料並檢查權限
             await checkPermission();
-            // 2. 顯示活動
             loadEvents();
-
-        } catch (err) {
-            console.error("LIFF 初始化失敗", err);
-        }
+        } catch (err) { console.error(err); }
     }
 
-    // 權限檢查：只有在 profiles 表中 role 為 admin/organizer 的人才看得到表單
     async function checkPermission() {
-        let { data: profile } = await _supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', myProfile.userId)
-            .single();
-
+        let { data: profile } = await _supabase.from('profiles').select('role').eq('id', myProfile.userId).single();
         if (profile && (profile.role === 'admin' || profile.role === 'organizer')) {
+            isAdmin = true;
             document.getElementById('admin-panel').style.display = 'block';
         }
     }
 
-    // 載入活動清單
     async function loadEvents() {
         const { data: events } = await _supabase.from('events').select('*').order('date_time', { ascending: true });
         const { data: regs } = await _supabase.from('registrations').select('*');
@@ -128,13 +107,28 @@
             const amIJoined = currentRegs.some(r => r.user_id === myProfile.userId);
 
             return `
-                <div class="event-card ${isFull ? 'full' : ''}">
+                <div class="event-card">
                     <h3>${ev.title}</h3>
                     <p>📍 地點：${ev.location}</p>
                     <p>⏰ 時間：${new Date(ev.date_time).toLocaleString('zh-TW', {hour12:false})}</p>
-                    <p>👥 人數：<span class="count-tag">${count} / ${ev.max_players}</span></p>
+                    <p>👥 人數：<strong>${count} / ${ev.max_players}</strong></p>
                     <p>💰 費用：$${ev.price}</p>
                     
+                    ${isAdmin ? `
+                        <div class="admin-list-box">
+                            <strong>📋 報名清單 (團主可見)：</strong>
+                            <ul>
+                                ${currentRegs.length > 0 
+                                    ? currentRegs.map(r => `
+                                        <li>
+                                            ${r.user_name} 
+                                            <span class="kick-btn" onclick="adminKick('${ev.id}', '${r.user_id}', '${r.user_name}')">移除</span>
+                                        </li>`).join('')
+                                    : '<li>暫無人報名</li>'}
+                            </ul>
+                        </div>
+                    ` : ''}
+
                     ${amIJoined 
                         ? `<button class="btn btn-cancel" onclick="cancelEvent(${ev.id}, '${ev.title}')">取消報名</button>` 
                         : `<button class="btn ${isFull ? 'btn-disabled' : 'btn-primary'}" 
@@ -148,50 +142,39 @@
         }).join('');
     }
 
-    // 發布活動 (團主用)
     async function postNewEvent() {
-        const eventData = {
+        const { error } = await _supabase.from('events').insert([{
             title: document.getElementById('title').value,
             date_time: document.getElementById('date_time').value,
             location: document.getElementById('location').value,
             price: parseInt(document.getElementById('price').value),
             max_players: parseInt(document.getElementById('max_players').value),
             organizer_id: myProfile.userId
-        };
-
-        const { error } = await _supabase.from('events').insert([eventData]);
-        if (error) alert("錯誤: " + error.message);
-        else { alert("發布成功！"); location.reload(); }
+        }]);
+        if (error) alert(error.message); else location.reload();
     }
 
-    // 報名功能
     async function joinEvent(eventId, title) {
         const { error } = await _supabase.from('registrations').insert([{
-            event_id: eventId,
-            user_id: myProfile.userId,
-            user_name: myProfile.displayName
+            event_id: eventId, user_id: myProfile.userId, user_name: myProfile.displayName
         }]);
-
-        if (error) alert("報名失敗: " + error.message);
-        else { alert(`【${title}】報名成功！`); location.reload(); }
+        if (error) alert(error.message); else location.reload();
     }
 
-    // 取消報名功能
     async function cancelEvent(eventId, title) {
-        if (!confirm(`確定要取消【${title}】的報名嗎？`)) return;
+        if (!confirm(`確定取消【${title}】的報名？`)) return;
+        const { error } = await _supabase.from('registrations').delete().eq('event_id', eventId).eq('user_id', myProfile.userId);
+        if (error) alert(error.message); else location.reload();
+    }
 
-        const { error } = await _supabase
-            .from('registrations')
-            .delete()
-            .eq('event_id', eventId)
-            .eq('user_id', myProfile.userId);
-
-        if (error) alert("取消失敗: " + error.message);
-        else { alert("已取消報名。"); location.reload(); }
+    // 團主移除球友功能
+    async function adminKick(eventId, userId, userName) {
+        if (!confirm(`確定要將球友【${userName}】從名單中移除嗎？`)) return;
+        const { error } = await _supabase.from('registrations').delete().eq('event_id', eventId).eq('user_id', userId);
+        if (error) alert("移除失敗"); else loadEvents();
     }
 
     main();
 </script>
-
 </body>
 </html>
