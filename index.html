@@ -3,75 +3,84 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>必IN 系統診斷中</title>
+    <title>必IN 臨打小助手 - 最終穩定版</title>
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { font-family: -apple-system, sans-serif; background: #f0f2f5; padding: 20px; }
+        body { font-family: -apple-system, sans-serif; background: #f0f2f5; padding: 20px; color: #333; }
         .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 400px; margin: auto; }
-        .log-box { background: #1e1e1e; color: #00ff00; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 13px; margin-top: 15px; line-height: 1.6; }
-        .success-ui { display: none; margin-top: 20px; border-top: 2px solid #00B900; pt: 15px; }
-        .btn { background: #00B900; color: white; border: none; width: 100%; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; }
-        input { width: 100%; padding: 10px; margin: 5px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
+        .log-box { background: #1e1e1e; color: #00ff00; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 12px; margin-top: 15px; line-height: 1.5; overflow-x: auto; }
+        .success-ui { display: none; margin-top: 20px; border-top: 2px solid #00B900; padding-top: 15px; }
+        .btn { background: #00B900; color: white; border: none; width: 100%; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; font-size: 16px; }
+        .btn:disabled { background: #ccc; }
+        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 14px; }
+        label { font-size: 12px; color: #666; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h2 style="color: #00B900; margin-top: 0;">🏸 必IN 診斷日誌</h2>
-    <div id="statusTitle" style="font-weight: bold;">目前進度：正在準備引擎...</div>
+    <h2 style="color: #00B900; margin-top: 0; display: flex; align-items: center;">
+        <span style="margin-right: 8px;">🏸</span> 必IN 系統日誌
+    </h2>
+    <div id="statusTitle" style="font-weight: bold; font-size: 14px;">系統狀態：檢查環境中...</div>
     
-    <div class="log-box" id="debugLog">
-        > 腳本已載入<br>
-    </div>
+    <div class="log-box" id="debugLog">> 等待瀏覽器回應...<br></div>
 
     <div id="mainUI" class="success-ui">
-        <p id="welcomeMsg" style="font-weight: bold; color: #2c3e50;"></p>
+        <p id="welcomeMsg" style="font-weight: bold; color: #2c3e50; margin-bottom: 15px;"></p>
         <div style="background: #f9f9f9; padding: 15px; border-radius: 10px;">
-            <label style="font-size: 12px;">活動名稱</label>
-            <input type="text" id="matchTitle" placeholder="例：週六中級團">
+            <label>活動名稱</label>
+            <input type="text" id="matchTitle" placeholder="例：週六下午羽球團">
+            <label>人數上限</label>
             <input type="number" id="maxPlayers" value="10">
-            <button class="btn" onclick="createMatch()">發布並自動報名</button>
+            <button class="btn" id="submitBtn" onclick="createMatch()">發布場次並自動報名</button>
         </div>
     </div>
 </div>
 
 <script>
-    // --- 配置資訊 ---
+    // --- 核心配置 ---
     const LIFF_ID = "2008137674-5cDNlo0N"; 
     const SUPABASE_URL = "https://vdhqcyjjxzljelqpkyuo.supabase.co"; 
-    const SUPABASE_KEY = "sb_publishable_Q25ZWq1J0VYL7SVJbGVRHg_YVj--rkd"; // 來源：
+    const SUPABASE_KEY = "sb_publishable_Q25ZWq1J0VYL7SVJbGVRHg_YVj--rkd"; 
 
+    // 初始化 Supabase
     const supabase = supabaseJs.createClient(SUPABASE_URL, SUPABASE_KEY);
     let userProfile = null;
 
+    // 日誌輔助函數
     function addLog(text, color = "#00ff00") {
         const log = document.getElementById("debugLog");
         log.innerHTML += `<span style="color:${color}">> ${text}</span><br>`;
+        console.log(text);
     }
 
+    // 核心初始化函數
     async function startDebug() {
         const title = document.getElementById("statusTitle");
-        
         try {
             // STEP 1: LIFF 初始化
-            addLog("正在執行 liff.init()...");
+            addLog("正在連接 LINE 伺服器...");
             await liff.init({ liffId: LIFF_ID });
-            addLog("✅ LIFF 初始化成功", "#55ff55");
+            addLog("✅ LINE 引擎啟動成功", "#55ff55");
 
             // STEP 2: 檢查登入
-            addLog("正在檢查登入狀態...");
+            addLog("檢查球友登入狀態...");
             if (!liff.isLoggedIn()) {
-                addLog("⚠️ 用戶未登入，準備導向 LINE Login", "#ffcc00");
-                liff.login({ redirectUri: window.location.href });
+                addLog("⚠️ 未登入，導向 LINE 授權頁...", "#ffcc00");
+                // 延遲一秒再跳轉，確保用戶看得到日誌
+                setTimeout(() => {
+                    liff.login({ redirectUri: window.location.href });
+                }, 1000);
                 return;
             }
-            addLog("✅ 已登入 LINE", "#55ff55");
+            addLog("✅ 已確認 LINE 身分", "#55ff55");
 
-            // STEP 3: 抓取個人資料
-            addLog("正在抓取 profile 資料...");
+            // STEP 3: 取得 Profile
+            addLog("讀取球友個人資料...");
             userProfile = await liff.getProfile();
-            addLog(`✅ 抓取成功：${userProfile.displayName}`, "#55ff55");
+            addLog(`✅ 辨識成功：${userProfile.displayName}`, "#55ff55");
 
             // STEP 4: 啟動介面
             title.innerText = "✅ 系統準備就緒";
@@ -79,22 +88,28 @@
             document.getElementById("mainUI").style.display = "block";
 
         } catch (err) {
-            addLog(`❌ 發生錯誤！`, "#ff5555");
-            addLog(`代碼: ${err.code}`, "#ff5555");
-            addLog(`訊息: ${err.message}`, "#ff5555");
-            title.innerText = "❌ 初始化失敗";
-            alert("抓到異常！\n" + err.message);
+            addLog(`❌ 初始化失敗`, "#ff5555");
+            addLog(`錯誤訊息: ${err.message}`, "#ff5555");
+            title.innerText = "❌ 系統異常";
+            alert("偵測到異常，請檢查控制台設定：\n" + err.message);
         }
     }
 
+    // 發布揪團函數
     async function createMatch() {
-        const title = document.getElementById("matchTitle").value;
-        if (!title) return alert("請輸入活動名稱");
+        const titleInput = document.getElementById("matchTitle");
+        const btn = document.getElementById("submitBtn");
+        
+        if (!titleInput.value) return alert("請輸入活動名稱");
+        if (!userProfile) return alert("無法辨識身分，請重新整理");
 
-        addLog("正在寫入資料至 Supabase...");
+        btn.disabled = true;
+        btn.innerText = "資料寫入中...";
+        addLog("正在同步至雲端資料庫...");
+
         try {
             const { error } = await supabase
-                .from('registrations') // 來源：
+                .from('registrations')
                 .insert([{ 
                     user_name: userProfile.displayName, 
                     line_id: userProfile.userId,
@@ -102,15 +117,27 @@
                 }]);
 
             if (error) throw error;
+            
             addLog("✅ 資料寫入成功！", "#55ff55");
-            alert("發起成功！");
+            alert("🎉 發起成功！您已自動報名為「主揪」。");
+            btn.innerText = "發布成功";
         } catch (err) {
             addLog(`❌ 寫入失敗: ${err.message}`, "#ff5555");
-            alert("資料庫寫入失敗: " + err.message);
+            alert("寫入資料庫失敗：" + err.message);
+            btn.disabled = false;
+            btn.innerText = "重新發布";
         }
     }
 
-    startDebug();
+    // --- 關鍵修正：確保網頁與 SDK 完全載入後才執行 ---
+    window.onload = function() {
+        addLog("瀏覽器環境已就緒");
+        // 延遲 500ms 避開手機版啟動衝突
+        setTimeout(() => {
+            startDebug();
+        }, 500);
+    };
 </script>
+
 </body>
 </html>
