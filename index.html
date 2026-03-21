@@ -9,33 +9,28 @@
     <style>
         body { font-family: -apple-system, sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; padding: 20px; }
         .container { background: white; width: 100%; max-width: 400px; border-radius: 20px; padding: 25px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); text-align: center; }
-        h2 { color: #00B900; margin-top: 0; }
         .user-box { background: #e8f5e9; padding: 12px; border-radius: 10px; margin-bottom: 20px; font-weight: bold; color: #2e7d32; }
         .match-card { border: 1px solid #eee; padding: 20px; border-radius: 15px; background: #fff; text-align: left; }
-        .btn { background: #00B900; color: white; border: none; width: 100%; padding: 15px; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.3s; margin-top: 10px; }
-        .btn:disabled { background: #ccc; cursor: not-allowed; }
-        .debug-info { font-size: 11px; color: #999; margin-top: 15px; text-align: left; background: #eee; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        .btn { background: #00B900; color: white; border: none; width: 100%; padding: 15px; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .status-tag { font-size: 11px; color: #888; margin-top: 15px; padding: 8px; background: #f0f0f0; border-radius: 5px; word-break: break-all; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>必IN 臨打小助手</h2>
-        <div id="userName" class="user-box">正在連線至 LINE...</div>
+        <h2 style="color: #00B900;">必IN 臨打小助手</h2>
+        <div id="userName" class="user-box">身份辨識中...</div>
 
         <div class="match-card">
-            <strong style="font-size: 1.2em;">週六下午羽球團 (測試)</strong><br>
-            <p style="color: #666; margin: 10px 0;">
-                📍 地點：必IN羽球館<br>
-                💰 費用：$250 / 人
-            </p>
+            <strong>週六下午羽球團 (測試)</strong><br>
+            <p style="color: #666; margin: 10px 0;">📍 地點：必IN羽球館<br>💰 費用：$250 / 人</p>
             <button class="btn" id="regBtn" onclick="register()">我要報名 (+1)</button>
         </div>
         
-        <div id="debugLog" class="debug-info">系統狀態：準備初始化...</div>
+        <div id="statusInfo" class="status-tag">系統準備中...</div>
     </div>
 
     <script>
-        // 1. 基本設定 (已對應 image_e2868a.png 內容)
+        // 1. 填入您的正確資訊
         const supabaseUrl = 'https://vdhqcyjjxzljelqpkyuo.supabase.co';
         const supabaseKey = 'sb_publishable_Q25ZWq1J0VYL7SVJbGVRHg_YVj--rkd';
         const liffId = '2008137674-5cDNlo0N'; 
@@ -43,67 +38,52 @@
         const supabase = supabaseJs.createClient(supabaseUrl, supabaseKey);
         let userProfile = null;
 
-        function updateLog(msg) {
-            document.getElementById("debugLog").innerText = "系統狀態：" + msg;
-        }
-
-        // 2. 初始化 LINE LIFF
-        async function main() {
+        // 2. 啟動 LINE 引擎
+        async function startApp() {
+            const status = document.getElementById("statusInfo");
             try {
-                updateLog("正在連線 LINE 伺服器...");
+                status.innerText = "狀態：連線 LINE 伺服器...";
                 await liff.init({ liffId: liffId });
                 
                 if (!liff.isLoggedIn()) {
-                    updateLog("尚未登入 LINE，跳轉中...");
+                    status.innerText = "狀態：引導登入中...";
                     liff.login();
                 } else {
                     userProfile = await liff.getProfile();
                     document.getElementById("userName").innerText = "👋 哈囉，" + userProfile.displayName;
-                    updateLog("連線成功！歡迎使用。");
+                    status.innerText = "狀態：系統就緒 (已連線)";
                 }
             } catch (err) {
-                document.getElementById("userName").innerText = "❌ 連線失敗";
-                updateLog("錯誤原因：" + err.message);
-                console.error(err);
+                status.innerText = "連線失敗：" + err.message;
             }
         }
-        main();
+        startApp();
 
-        // 3. 報名功能 (存入 registrations 資料表)
+        // 3. 報名動作
         async function register() {
-            if (!userProfile) {
-                alert("尚未識別身分，請稍候。");
-                return;
-            }
-
+            if (!userProfile) return alert("尚未讀取身份，請重新整理頁面。");
+            
             const btn = document.getElementById("regBtn");
-            btn.innerText = "正在傳送...";
             btn.disabled = true;
+            btn.innerText = "傳送中...";
 
-            try {
-                const { error } = await supabase
-                    .from('registrations')
-                    .insert([
-                        { 
-                            line_id: userProfile.userId, 
-                            user_name: userProfile.displayName,
-                            status: 'confirmed' 
-                        }
-                    ]);
-
-                if (error) {
-                    alert("❌ 報名失敗\n原因：" + error.message);
-                    btn.innerText = "我要報名 (+1)";
-                    btn.disabled = false;
-                } else {
-                    alert("🎉 報名成功！\n資料已存入雲端。");
-                    btn.innerText = "已完成報名";
-                    btn.style.background = "#ccc";
+            // 寫入資料表
+            const { error } = await supabase.from('registrations').insert([
+                { 
+                    line_id: userProfile.userId, 
+                    user_name: userProfile.displayName, 
+                    status: 'confirmed' 
                 }
-            } catch (err) {
-                alert("系統錯誤：" + err.message);
-                btn.innerText = "我要報名 (+1)";
+            ]);
+
+            if (error) {
+                alert("報名失敗：" + error.message);
                 btn.disabled = false;
+                btn.innerText = "我要報名 (+1)";
+            } else {
+                alert("🎉 報名成功！");
+                btn.innerText = "已完成報名";
+                btn.style.background = "#ccc";
             }
         }
     </script>
