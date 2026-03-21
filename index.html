@@ -9,12 +9,12 @@
     <style>
         body { font-family: -apple-system, sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; padding: 20px; }
         .container { background: white; width: 100%; max-width: 400px; border-radius: 20px; padding: 25px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
-        h2 { color: #00B900; margin-top: 0; }
-        .user-box { background: #e8f5e9; padding: 10px 15px; border-radius: 10px; margin-bottom: 20px; font-weight: bold; color: #2e7d32; }
-        .match-card { border: 1px solid #eee; padding: 20px; border-radius: 15px; background: #fff; }
-        .btn { background: #00B900; color: white; border: none; width: 100%; padding: 15px; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        h2 { color: #00B900; margin-top: 0; text-align: center; }
+        .user-box { background: #e8f5e9; padding: 12px; border-radius: 10px; margin-bottom: 20px; font-weight: bold; color: #2e7d32; text-align: center; }
+        .match-card { border: 1px solid #eee; padding: 20px; border-radius: 15px; background: #fff; text-align: left; }
+        .btn { background: #00B900; color: white; border: none; width: 100%; padding: 15px; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.3s; margin-top: 10px; }
         .btn:disabled { background: #ccc; cursor: not-allowed; }
-        .footer { margin-top: 20px; font-size: 12px; color: #999; text-align: center; }
+        .error-log { font-size: 12px; color: red; margin-top: 10px; word-break: break-all; }
     </style>
 </head>
 <body>
@@ -31,49 +31,55 @@
             <button class="btn" id="regBtn" onclick="register()">我要報名 (+1)</button>
         </div>
         
-        <div class="footer">系統版本：v1.0 - 資料同步中</div>
+        <div id="debugLog" class="error-log"></div>
     </div>
 
     <script>
-        // --- 2. 基本設定 (已填入你的資訊) ---
+        // --- 1. 設定區 (已填入你的正確資訊) ---
         const supabaseUrl = 'https://vdhqcyjjxzljelqpkyuo.supabase.co';
         const supabaseKey = 'sb_publishable_Q25ZWq1J0VYL7SVJbGVRHg_YVj--rkd';
-        const liffId = '2008137674-5cDNlo0N';
+        const liffId = '2008137674-5cDNlo0N'; 
 
         const supabase = supabaseJs.createClient(supabaseUrl, supabaseKey);
         let userProfile = null;
 
-        // --- 3. 初始化 LINE LIFF ---
+        function log(msg) {
+            document.getElementById("debugLog").innerText += msg + "\n";
+        }
+
+        // --- 2. 初始化 LINE ---
         async function main() {
             try {
+                log("正在初始化 LIFF...");
                 await liff.init({ liffId: liffId });
+                
                 if (!liff.isLoggedIn()) {
+                    log("尚未登入，導向登入頁...");
                     liff.login();
                 } else {
+                    log("登入成功，獲取個人資料...");
                     userProfile = await liff.getProfile();
                     document.getElementById("userName").innerText = "👋 哈囉，" + userProfile.displayName;
                 }
             } catch (err) {
-                document.getElementById("userName").innerText = "❌ 系統啟動失敗";
-                alert("LINE 初始化失敗，原因：" + err.message);
+                document.getElementById("userName").innerText = "❌ 連線失敗";
+                log("錯誤詳情: " + err.message);
             }
         }
         main();
 
-        // --- 4. 報名功能 ---
+        // --- 3. 報名功能 ---
         async function register() {
             if (!userProfile) {
-                alert("尚未識別身分，請嘗試關閉視窗重新開啟。");
+                alert("尚未識別身分，請稍候。");
                 return;
             }
 
             const btn = document.getElementById("regBtn");
-            const originalText = btn.innerText;
             btn.innerText = "傳送中...";
             btn.disabled = true;
 
             try {
-                // 嘗試寫入 Supabase 資料表
                 const { error } = await supabase
                     .from('registrations')
                     .insert([
@@ -85,18 +91,17 @@
                     ]);
 
                 if (error) {
-                    // 這裡會跳出詳細錯誤碼 (例如 404 表格找不到, 425 權限不足)
-                    alert("❌ 報名失敗\n錯誤代碼：" + (error.code || 'Unknown') + "\n訊息：" + error.message);
-                    btn.innerText = originalText;
+                    alert("❌ 報名失敗\n代碼：" + error.code + "\n訊息：" + error.message);
+                    btn.innerText = "我要報名 (+1)";
                     btn.disabled = false;
                 } else {
-                    alert("🎉 報名成功！\n資料已存入 必IN 資料庫");
+                    alert("🎉 報名成功！資料已同步。");
                     btn.innerText = "已完成報名";
                     btn.style.background = "#ccc";
                 }
             } catch (err) {
-                alert("發生意外錯誤：" + err.message);
-                btn.innerText = originalText;
+                alert("異常錯誤：" + err.message);
+                btn.innerText = "我要報名 (+1)";
                 btn.disabled = false;
             }
         }
