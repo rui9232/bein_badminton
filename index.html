@@ -5,55 +5,127 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>臨打報名系統</title>
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { font-family: sans-serif; padding: 20px; background-color: #f4f4f4; }
         .event-card { background: white; padding: 15px; border-radius: 10px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .btn-join { background-color: #00b900; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; }
-        .user-info { margin-bottom: 20px; display: flex; align-items: center; }
-        .user-info img { width: 40px; border-radius: 50%; margin-right: 10px; }
+        .btn { border: none; padding: 10px; border-radius: 5px; cursor: pointer; width: 100%; }
+        .btn-join { background-color: #00b900; color: white; }
+        .btn-admin { background-color: #333; color: white; margin-top: 10px; }
+        input { width: 100%; padding: 8px; margin: 5px 0 15px 0; box-sizing: border-box; }
+        #admin-panel { display: none; background: #fff; padding: 15px; border: 2px solid #333; margin-bottom: 20px; }
     </style>
 </head>
 <body>
 
-    <div id="user-profile" class="user-info">
-        <p>載入用戶資訊中...</p>
+    <div id="user-info">載入中...</div>
+
+    <div id="admin-panel">
+        <h3>新增臨打團</h3>
+        <label>活動名稱</label>
+        <input type="text" id="title" placeholder="例如：週六下午羽球團">
+        <label>日期時間</label>
+        <input type="datetime-local" id="date_time">
+        <label>地點</label>
+        <input type="text" id="location" placeholder="某某球館">
+        <label>人數上限</label>
+        <input type="number" id="max_players" value="20">
+        <label>費用</label>
+        <input type="number" id="price" value="250">
+        <button class="btn btn-admin" onclick="createNewEvent()">發布活動</button>
     </div>
 
-    <h2>近期臨打活動</h2>
-    <div id="event-list">
-        <div class="event-card">
-            <h3>週六羽球團 (中級)</h3>
-            <p>地點：某某國民運動中心</p>
-            <p>費用：$250 | 剩餘名額：3</p>
-            <button class="btn-join" onclick="register()">我要報名</button>
-        </div>
-    </div>
+    <h2>目前活動列表</h2>
+    <div id="event-list">正在讀取活動...</div>
 
     <script>
-        // 初始化 LIFF
-        async function main() {
+        // --- 設定區 ---
+        const SUPABASE_URL = '你的_SUPABASE_URL';
+        const SUPABASE_KEY = '你的_SUPABASE_ANON_KEY';
+        const LIFF_ID = '你的_LIFF_ID';
+        
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        let currentUser = null;
+
+        async function init() {
             try {
-                await liff.init({ liffId: "2008137674-5cDNlo0N" }); // 這裡要換成你在 LINE Developers 申請到的 ID
+                await liff.init({ liffId: LIFF_ID });
                 if (!liff.isLoggedIn()) {
                     liff.login();
-                } else {
-                    const profile = await liff.getProfile();
-                    document.getElementById('user-profile').innerHTML = `
-                        <img src="${profile.pictureUrl}" alt="headshot">
-                        <span>你好，${profile.displayName}！準備好打球了嗎？</span>
-                    `;
+                    return;
                 }
+                
+                const profile = await liff.getProfile();
+                currentUser = profile;
+                document.getElementById('user-info').innerText = `你好，${profile.displayName}`;
+
+                // 1. 檢查並更新資料庫中的個人資料
+                await checkAndSyncProfile(profile);
+                
+                // 2. 讀取活動列表
+                fetchEvents();
+
             } catch (err) {
-                console.error("LIFF 初始化失敗", err);
+                console.error(err);
             }
         }
 
-        function register() {
-            alert("報名成功！(目前為模擬狀態)");
-            // 這裡之後會對接資料庫 API
+        async function checkAndSyncProfile(profile) {
+            // 嘗試抓取使用者權限
+            let { data: userProfile } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', profile.userId)
+                .single();
+
+            // 如果是管理員，顯示管理面板
+            if (userProfile && (userProfile.role === 'admin' || userProfile.role === 'organizer')) {
+                document.getElementById('admin-panel').style.display = 'block';
+            }
         }
 
-        main();
+        async function fetchEvents() {
+            let { data: events, error } = await supabase
+                .from('events')
+                .select('*')
+                .order('date_time', { ascending: true });
+
+            const listDiv = document.getElementById('event-list');
+            if (events && events.length > 0) {
+                listDiv.innerHTML = events.map(ev => `
+                    <div class="event-card">
+                        <h3>${ev.title}</h3>
+                        <p>📍 ${ev.location}</p>
+                        <p>⏰ ${new Date(ev.date_time).toLocaleString()}</p>
+                        <p>💰 費用：$${ev.price} | 人數上限：${ev.max_players}</p>
+                        <button class="btn btn-join" onclick="alert('報名功能開發中！')">點我報名</button>
+                    </div>
+                `).join('');
+            } else {
+                listDiv.innerHTML = '目前沒有活動。';
+            }
+        }
+
+        async function createNewEvent() {
+            const title = document.getElementById('title').value;
+            const date_time = document.getElementById('date_time').value;
+            const location = document.getElementById('location').value;
+            const max_players = document.getElementById('max_players').value;
+            const price = document.getElementById('price').value;
+
+            const { error } = await supabase.from('events').insert([{
+                title, date_time, location, max_players, price, organizer_id: currentUser.userId
+            }]);
+
+            if (error) {
+                alert('發布失敗：' + error.message);
+            } else {
+                alert('發布成功！');
+                fetchEvents(); // 重新整理列表
+            }
+        }
+
+        init();
     </script>
 </body>
 </html>
