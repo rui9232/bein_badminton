@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>必IN臨打系統 - Premium</title>
+    <title>必IN - 羽球臨打報名</title>
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
@@ -123,11 +123,6 @@
 
         .del-link { color: var(--error); font-size: 12px; cursor: pointer; opacity: 0.6; }
         .del-link:hover { opacity: 1; }
-        
-        .badge { 
-            background: #e6f7ff; color: #1890ff; 
-            padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;
-        }
     </style>
 </head>
 <body>
@@ -180,6 +175,33 @@
             await liff.init({ liffId: LIFF_ID });
             if (!liff.isLoggedIn()) { liff.login(); return; }
             myProfile = await liff.getProfile();
+
+            // 1. 自動註冊與讀取個人檔案
+            let { data: profile, error } = await _supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', myProfile.userId)
+                .single();
+
+            // 如果找不到 profiles 資料，就自動幫用戶新增一筆
+            if (!profile) {
+                console.log("新用戶登入，正在建立個人檔案...");
+                const { data: newProfile, error: insertError } = await _supabase
+                    .from('profiles')
+                    .insert([{ 
+                        id: myProfile.userId, 
+                        display_name: myProfile.displayName, 
+                        picture_url: myProfile.pictureUrl,
+                        role: 'user' 
+                    }])
+                    .select()
+                    .single();
+                
+                if (insertError) console.error("註冊失敗:", insertError.message);
+                profile = newProfile;
+            }
+
+            // 更新 UI 用戶卡片顯示
             document.getElementById('user-display').innerHTML = `
                 <img src="${myProfile.pictureUrl}">
                 <div>
@@ -187,17 +209,15 @@
                     <span>${myProfile.displayName}</span>
                 </div>
             `;
-            await checkPermission();
+
+            // 2. 判斷權限（admin 或 organizer 才能開團）
+            if (profile && (profile.role === 'admin' || profile.role === 'organizer')) {
+                isAdmin = true;
+                document.getElementById('admin-panel').style.display = 'block';
+            }
+
             loadEvents();
         } catch (err) { console.error(err); }
-    }
-
-    async function checkPermission() {
-        let { data: profile } = await _supabase.from('profiles').select('role').eq('id', myProfile.userId).single();
-        if (profile && (profile.role === 'admin' || profile.role === 'organizer')) {
-            isAdmin = true;
-            document.getElementById('admin-panel').style.display = 'block';
-        }
     }
 
     async function loadEvents() {
@@ -258,7 +278,6 @@
         }).join('');
     }
 
-    // 保持原本的邏輯功能不變...
     async function postNewEvent() {
         const { error } = await _supabase.from('events').insert([{
             title: document.getElementById('title').value,
