@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>必IN 臨打小助手</title>
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <style>
+        body { font-family: sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; padding: 20px; }
+        .container { background: white; width: 100%; max-width: 400px; border-radius: 15px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        h2 { color: #00B900; margin-bottom: 5px; }
+        .user-info { font-weight: bold; color: #333; margin-bottom: 20px; }
+        .match-card { border: 1px solid #ddd; padding: 15px; border-radius: 10px; margin-bottom: 10px; }
+        .btn { background: #00B900; color: white; border: none; width: 100%; padding: 12px; border-radius: 8px; font-size: 16px; cursor: pointer; }
+        .btn-outline { background: white; color: #ff4d4f; border: 1px solid #ff4d4f; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>必IN 臨打小助手</h2>
+        <div id="userName" class="user-info">正在辨識球友身份...</div>
+
+        <div class="match-card">
+            <strong>目前揪團：週六下午羽球團</strong><br>
+            時間：14:00 - 16:00<br>
+            地點：必IN羽球館<br>
+            費用：$250 / 人
+            <button class="btn" style="margin-top: 10px;" onclick="joinMatch()">我要報名 (+1)</button>
+        </div>
+
+        <button class="btn btn-outline" onclick="createMatch()">+ 我要發起新揪團</button>
+    </div>
+
+    <script>
+        async function main() {
+            // 稍後我們會把這裡的 ID 換掉
+            await liff.init({ liffId: "填入你的LIFF_ID" });
+            
+            if (!liff.isLoggedIn()) {
+                liff.login();
+            } else {
+                const profile = await liff.getProfile();
+                document.getElementById("userName").innerText = "👋 哈囉，" + profile.displayName;
+            }
+        }
+        main();
+
+        function joinMatch() {
+            alert("正在串接資料庫...這將會把你加入名單或備取！");
+        }
+
+        function createMatch() {
+            alert("正在開發發起功能！您可以設定時間與人數。");
+        }
+    </script>
+</body>
+</html>
