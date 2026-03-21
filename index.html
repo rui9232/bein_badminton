@@ -11,8 +11,8 @@
         .container { background: white; width: 100%; max-width: 400px; border-radius: 20px; padding: 25px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); text-align: center; }
         .user-box { background: #e8f5e9; padding: 12px; border-radius: 10px; margin-bottom: 20px; font-weight: bold; color: #2e7d32; min-height: 24px; }
         .match-card { border: 1px solid #eee; padding: 20px; border-radius: 15px; background: #fff; text-align: left; }
-        .btn { background: #00B900; color: white; border: none; width: 100%; padding: 15px; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 10px; }
-        .btn:disabled { background: #ccc; }
+        .btn { background: #00B900; color: white; border: none; width: 100%; padding: 15px; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 10px; transition: 0.3s; }
+        .btn:disabled { background: #ccc; cursor: not-allowed; }
         .status-tag { font-size: 11px; color: #888; margin-top: 15px; padding: 8px; background: #f0f0f0; border-radius: 5px; }
     </style>
 </head>
@@ -22,7 +22,7 @@
         <div id="userName" class="user-box">身分讀取中...</div>
 
         <div class="match-card">
-            <strong>週六下午羽球團 (測試)</strong><br>
+            <strong>週六下午羽球團 (測試場次)</strong><br>
             <p style="color: #666; margin: 10px 0;">📍 地點：必IN羽球館<br>💰 費用：$250 / 人</p>
             <button class="btn" id="regBtn" onclick="register()">我要報名 (+1)</button>
         </div>
@@ -31,40 +31,43 @@
     </div>
 
     <script>
-        // 設定資訊
-        const supabaseUrl = 'https://vdhqcyjjxzljelqpkyuo.supabase.co';
-        const supabaseKey = 'sb_publishable_Q25ZWq1J0VYL7SVJbGVRHg_YVj--rkd';
-        const liffId = '2008137674-5cDNlo0N';
+        // 1. 基本設定
+        const SB_URL = 'https://vdhqcyjjxzljelqpkyuo.supabase.co';
+        const SB_KEY = 'sb_publishable_Q25ZWq1J0VYL7SVJbGVRHg_YVj--rkd';
+        const L_ID = '2008137674-5cDNlo0N';
 
-        // 初始化 Supabase (確保整個腳本只宣告這一次)
-        const supabaseClient = supabaseJs.createClient(supabaseUrl, supabaseKey);
+        // 2. 初始化 Supabase (修正為 v2 SDK 語法)
+        const supabaseClient = supabase.createClient(SB_URL, SB_KEY);
         let userProfile = null;
 
-        // 啟動 LIFF
+        // 3. 啟動 LIFF 引擎
         async function startApp() {
             const status = document.getElementById("statusInfo");
             const nameBox = document.getElementById("userName");
 
             try {
-                status.innerText = "狀態：啟動 LINE 引擎...";
-                await liff.init({ liffId: liffId });
+                status.innerText = "狀態：連線 LINE 伺服器...";
+                await liff.init({ liffId: L_ID });
 
                 if (!liff.isLoggedIn()) {
                     status.innerText = "狀態：引導登入中...";
-                    liff.login();
+                    liff.login(); 
                 } else {
+                    status.innerText = "狀態：讀取個人資料...";
                     userProfile = await liff.getProfile();
                     nameBox.innerText = "👋 哈囉，" + userProfile.displayName;
                     status.innerText = "狀態：系統就緒";
                 }
             } catch (err) {
-                status.innerText = "初始化失敗：" + err.message;
+                status.innerText = "連線失敗：" + err.message;
+                console.error(err);
             }
         }
 
+        // 執行初始化
         startApp();
 
-        // 報名功能
+        // 4. 報名傳送功能
         async function register() {
             if (!userProfile) {
                 alert("尚未完成身分讀取，請稍候。");
@@ -73,8 +76,9 @@
             
             const btn = document.getElementById("regBtn");
             btn.disabled = true;
-            btn.innerText = "傳送中...";
+            btn.innerText = "正在傳送報名資料...";
 
+            // 寫入資料至 Supabase registrations 表格
             const { error } = await supabaseClient.from('registrations').insert([
                 { 
                     line_id: userProfile.userId, 
@@ -84,7 +88,7 @@
             ]);
 
             if (error) {
-                alert("報名失敗：" + error.message);
+                alert("報名失敗，請確認資料庫 RLS 權限：" + error.message);
                 btn.disabled = false;
                 btn.innerText = "我要報名 (+1)";
             } else {
