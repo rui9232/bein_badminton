@@ -116,33 +116,60 @@
             await liff.init({ liffId: LIFF_ID });
             if (!liff.isLoggedIn()) { liff.login(); return; }
             myProfile = await liff.getProfile();
+            console.log("LINE 登入成功，用戶 ID:", myProfile.userId);
 
-            let { data: profile } = await _supabase.from('profiles').select('*').eq('id', myProfile.userId).single();
+            // 1. 檢查資料庫是否有此用戶 (使用 maybeSingle 避免找不到資料時報錯)
+            let { data: profile, error: selectError } = await _supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', myProfile.userId)
+                .maybeSingle();
 
+            if (selectError) console.error("查詢 profiles 失敗:", selectError.message);
+
+            // 2. 如果查無資料，自動建立新用戶
             if (!profile) {
-                const { data: newProfile } = await _supabase.from('profiles').insert([{ 
-                    id: myProfile.userId, display_name: myProfile.displayName, 
-                    picture_url: myProfile.pictureUrl, role: 'user' 
-                }]).select().single();
-                profile = newProfile;
+                console.log("資料庫無紀錄，正在為新用戶建立 profiles...");
+                const { data: newProfile, error: insertError } = await _supabase
+                    .from('profiles')
+                    .insert([{ 
+                        id: myProfile.userId, 
+                        display_name: myProfile.displayName, 
+                        picture_url: myProfile.pictureUrl, 
+                        role: 'user' 
+                    }])
+                    .select()
+                    .maybeSingle();
+
+                if (insertError) {
+                    console.error("自動建立 profiles 失敗:", insertError.message);
+                } else {
+                    profile = newProfile;
+                    console.log("新用戶資料已成功寫入資料庫");
+                }
             }
 
+            // 3. 渲染用戶卡片
             document.getElementById('user-display').innerHTML = `
                 <img src="${myProfile.pictureUrl}">
                 <div><div style="font-size:12px; color:#8c8c8c">歡迎回來</div><span>${myProfile.displayName}</span></div>
             `;
 
+            // 4. 判斷權限是否顯示管理面板
             if (profile && (profile.role === 'admin' || profile.role === 'organizer')) {
                 isAdmin = true;
                 document.getElementById('admin-panel').style.display = 'block';
+                console.log("管理員權限已解鎖");
             }
+
             loadEvents();
-        } catch (err) { console.error(err); }
+        } catch (err) { 
+            console.error("LIFF 初始化或主程序錯誤:", err); 
+        }
     }
 
     async function loadEvents() {
         const { data: events } = await _supabase.from('events').select('*').order('date_time', { ascending: true });
-        // 核心：依據報名時間排序實現自動遞補功能
         const { data: regs } = await _supabase.from('registrations').select('*').order('created_at', { ascending: true });
         const listDiv = document.getElementById('event-list');
         
