@@ -3,28 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>必IN 臨打小助手 - 修正版</title>
+    <title>必IN 臨打小助手 - 強制登入版</title>
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { font-family: sans-serif; background-color: #f4f4f4; padding: 20px; }
-        .container { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .status-box { background: #eee; padding: 10px; border-radius: 5px; margin-bottom: 15px; font-size: 14px; }
-        .btn { background: #00B900; color: white; border: none; width: 100%; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; }
-        .form-group { margin-top: 15px; border-top: 1px solid #ddd; pt: 15px; }
-        input { width: 100%; padding: 10px; margin: 5px 0; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+        body { font-family: -apple-system, sans-serif; background-color: #f8f9fa; padding: 20px; }
+        .card { background: white; border-radius: 15px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 400px; margin: auto; }
+        .status { padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 14px; text-align: center; font-weight: bold; }
+        .loading { background: #fff3cd; color: #856404; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .hidden { display: none; }
+        .btn { background: #00B900; color: white; border: none; width: 100%; padding: 15px; border-radius: 10px; font-size: 16px; cursor: pointer; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2 style="color: #00B900;">🏸 必IN 臨打小助手</h2>
-    <div id="statusBox" class="status-box">系統初始化中...</div>
+<div class="card">
+    <h2 style="color: #00B900; margin-top: 0;">🏸 必IN 臨打助手</h2>
+    
+    <div id="statusBox" class="status loading">正在初始化系統...</div>
 
-    <div id="mainUI" style="display:none;">
-        <div class="form-group">
-            <h4>+ 發起新揪團</h4>
-            <input type="text" id="matchTitle" placeholder="活動名稱 (例：週六下午團)">
+    <div id="mainUI" class="hidden">
+        <div style="margin-bottom: 20px; padding: 10px; border: 1px dashed #ccc; border-radius: 8px;">
+            <p style="margin: 0; font-size: 14px; font-weight: bold;">發起新揪團</p>
+            <input type="text" id="matchTitle" placeholder="活動名稱 (例：週六中級團)">
             <input type="number" id="maxPlayers" value="10" placeholder="人數上限">
             <button class="btn" id="submitBtn" onclick="createMatch()">發布並自動報名</button>
         </div>
@@ -32,49 +36,55 @@
 </div>
 
 <script>
-    // --- 配置區 ---
+    // --- 配置資訊 ---
     const LIFF_ID = "2008137674-5cDNlo0N"; 
     const SUPABASE_URL = "https://vdhqcyjjxzljelqpkyuo.supabase.co"; 
-    const SUPABASE_KEY = "sb_publishable_Q25ZWq1J0VYL7SVJbGVRHg_YVj--rkd"; 
+    const SUPABASE_KEY = "sb_publishable_Q25ZWq1J0VYL7SVJbGVRHg_YVj--rkd"; // 已根據您的截圖填入
 
     const supabase = supabaseJs.createClient(SUPABASE_URL, SUPABASE_KEY);
     let userProfile = null;
 
-    async function main() {
+    async function initializeApp() {
         const statusBox = document.getElementById("statusBox");
+        
         try {
-            // 1. 初始化 LIFF
+            // 1. 第一步：初始化 LIFF
             await liff.init({ liffId: LIFF_ID });
-            
-            // 2. [關鍵修正] 強制檢查登入
+            console.log("LIFF Init 成功");
+
+            // 2. 第二步：強制檢查登入狀態
             if (!liff.isLoggedIn()) {
-                statusBox.innerText = "正在引導登入 LINE...";
-                liff.login(); // 這會觸發網頁跳轉到 LINE 登入頁
-                return; // 終止後續執行，等待跳轉
+                statusBox.innerText = "偵測到未登入，跳轉中...";
+                // 強制導向 LINE 登入，登入後會回到目前這個網址
+                liff.login({ redirectUri: window.location.href });
+                return; 
             }
 
-            // 3. 登入成功後抓取資料
+            // 3. 第三步：抓取用戶資料
             userProfile = await liff.getProfile();
-            statusBox.innerText = "👋 哈囉，" + userProfile.displayName;
-            statusBox.style.background = "#e8f5e9";
             
-            // 4. 顯示 UI
-            document.getElementById("mainUI").style.display = "block";
+            // 4. 第四步：更新 UI
+            statusBox.innerText = "👋 歡迎，" + userProfile.displayName;
+            statusBox.className = "status success";
+            document.getElementById("mainUI").classList.remove("hidden");
 
         } catch (err) {
-            console.error(err);
-            statusBox.innerText = "❌ 初始化失敗: " + err.message;
-            alert("偵測到錯誤: " + err.message);
+            console.error("初始化錯誤:", err);
+            statusBox.innerText = "❌ 錯誤：" + err.message;
+            statusBox.className = "status error";
+            alert("系統錯誤碼: " + err.code + "\n訊息: " + err.message);
         }
     }
 
     async function createMatch() {
         const title = document.getElementById("matchTitle").value;
         const btn = document.getElementById("submitBtn");
+        
         if (!title) return alert("請輸入活動名稱");
+        if (!userProfile) return alert("身份識別失敗，請重新整理");
 
         btn.disabled = true;
-        btn.innerText = "發布中...";
+        btn.innerText = "正在發布...";
 
         try {
             const { error } = await supabase
@@ -86,17 +96,17 @@
                 }]);
 
             if (error) throw error;
-            alert("🎉 發起成功！");
+            alert("🎉 發起成功！資料已同步至 Supabase");
             btn.innerText = "發布完成";
         } catch (err) {
-            alert("資料庫寫入失敗: " + err.message);
+            alert("寫入失敗: " + err.message);
             btn.disabled = false;
             btn.innerText = "重新發布";
         }
     }
 
-    // 啟動
-    main();
+    // 啟動程式
+    initializeApp();
 </script>
 
 </body>
