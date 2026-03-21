@@ -5,52 +5,73 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>必IN 臨打小助手</title>
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { font-family: sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; padding: 20px; }
-        .container { background: white; width: 100%; max-width: 400px; border-radius: 15px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        h2 { color: #00B900; margin-bottom: 5px; }
-        .user-info { font-weight: bold; color: #333; margin-bottom: 20px; }
-        .match-card { border: 1px solid #ddd; padding: 15px; border-radius: 10px; margin-bottom: 10px; }
-        .btn { background: #00B900; color: white; border: none; width: 100%; padding: 12px; border-radius: 8px; font-size: 16px; cursor: pointer; }
-        .btn-outline { background: white; color: #ff4d4f; border: 1px solid #ff4d4f; margin-top: 10px; }
+        body { font-family: sans-serif; background-color: #f0f2f5; padding: 20px; }
+        .container { background: white; border-radius: 15px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .btn { background: #00B900; color: white; border: none; width: 100%; padding: 12px; border-radius: 8px; font-size: 16px; margin-top: 10px; cursor: pointer; }
+        .match-card { border: 1px solid #ddd; padding: 15px; border-radius: 10px; margin-top: 20px; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>必IN 臨打小助手</h2>
-        <div id="userName" class="user-info">正在辨識球友身份...</div>
+        <h2 style="color: #00B900;">必IN 臨打小助手</h2>
+        <div id="userName">身份辨識中...</div>
 
         <div class="match-card">
-            <strong>目前揪團：週六下午羽球團</strong><br>
-            時間：14:00 - 16:00<br>
-            地點：必IN羽球館<br>
-            費用：$250 / 人
-            <button class="btn" style="margin-top: 10px;" onclick="joinMatch()">我要報名 (+1)</button>
+            <strong>週六下午羽球團 (測試場次)</strong><br>
+            地點：必IN羽球館 | 費用：$250
+            <button class="btn" id="regBtn" onclick="register()">我要報名 (+1)</button>
         </div>
-
-        <button class="btn btn-outline" onclick="createMatch()">+ 我要發起新揪團</button>
     </div>
 
     <script>
+        // 1. 初始化 Supabase (請替換成你的資訊)
+        const supabaseUrl = 'https://vdhqcyjjxzljelqpkyuo.supabase.co';
+        const supabaseKey = 'sb_publishable_Q25ZWq1J0VYL7SVJbGVRHg_YVj--rkd';
+        const supabase = supabaseJs.createClient(supabaseUrl, supabaseKey);
+
+        let userProfile = null;
+
         async function main() {
-            // 稍後我們會把這裡的 ID 換掉
-            await liff.init({ liffId: "2008137674-5cDNlo0N" });
-            
+            await liff.init({ liffId: "https://liff.line.me/2008137674-5cDNlo0N" });
             if (!liff.isLoggedIn()) {
                 liff.login();
             } else {
-                const profile = await liff.getProfile();
-                document.getElementById("userName").innerText = "👋 哈囉，" + profile.displayName;
+                userProfile = await liff.getProfile();
+                document.getElementById("userName").innerText = "👋 哈囉，" + userProfile.displayName;
             }
         }
         main();
 
-        function joinMatch() {
-            alert("正在串接資料庫...這將會把你加入名單或備取！");
-        }
+        // 2. 報名功能：寫入資料庫
+        async function register() {
+            if (!userProfile) return alert("尚未取得球友身份");
 
-        function createMatch() {
-            alert("正在開發發起功能！您可以設定時間與人數。");
+            const btn = document.getElementById("regBtn");
+            btn.innerText = "處理中...";
+            btn.disabled = true;
+
+            const { data, error } = await supabase
+                .from('registrations') // 確保你在 Supabase 有建這張表
+                .insert([
+                    { 
+                        line_id: userProfile.userId, 
+                        user_name: userProfile.displayName,
+                        status: 'confirmed' 
+                    }
+                ]);
+
+            if (error) {
+                console.error(error);
+                alert("報名失敗：" + error.message);
+                btn.innerText = "我要報名 (+1)";
+                btn.disabled = false;
+            } else {
+                alert("🎉 報名成功！資料已存入 Supabase");
+                btn.innerText = "已完成報名";
+                btn.style.background = "#ccc";
+            }
         }
     </script>
 </body>
