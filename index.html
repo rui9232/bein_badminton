@@ -21,6 +21,7 @@
             --lvl-basic: #52c41a;
             --lvl-inter: #1890ff;
             --lvl-adv: #f5222d;
+            --line-green: #06C755; /* LINE 官方綠 */
         }
 
         body { 
@@ -67,7 +68,6 @@
         .bg-inter { background: var(--lvl-inter); }
         .bg-adv { background: var(--lvl-adv); }
 
-        /* 程度篩選標籤 */
         .limit-tag {
             background: #fff7e6; color: #d46b08; border: 1px solid #ffd591;
             padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;
@@ -130,6 +130,21 @@
         .kick-x { margin-left: 6px; color: var(--error); cursor: pointer; font-weight: bold; }
         .del-link { color: var(--error); font-size: 12px; cursor: pointer; opacity: 0.6; }
         .copy-link { color: #1890ff; font-size: 12px; cursor: pointer; margin-right: 12px; font-weight: 500; }
+
+        /* 新增：官方 LINE 引流區塊樣式 */
+        .oa-promotion-card {
+            background: var(--line-green); color: #FFFFFF; padding: 16px 20px;
+            border-radius: 16px; display: flex; align-items: center; justify-content: space-between;
+            margin: 24px 4px; text-decoration: none;
+            box-shadow: 0 4px 15px rgba(6, 199, 85, 0.3); transition: transform 0.2s;
+        }
+        .oa-promotion-card:active { transform: scale(0.98); }
+        .oa-title { font-weight: bold; font-size: 15px; display: flex; align-items: center; gap: 6px; }
+        .oa-desc { font-size: 12px; opacity: 0.9; font-weight: normal; margin-top: 2px; }
+        .oa-btn-white {
+            background: #FFFFFF; color: var(--line-green); padding: 6px 14px;
+            border-radius: 20px; font-size: 13px; font-weight: bold; white-space: nowrap;
+        }
     </style>
 </head>
 <body>
@@ -182,6 +197,14 @@
 
     <h2 style="font-size: 22px; margin: 24px 0 16px 4px;">🔥 熱門活動</h2>
     <div id="event-list"></div>
+
+    <a href="https://lin.ee/yViMq9V" target="_blank" class="oa-promotion-card">
+        <div class="oa-info">
+            <div class="oa-title"><span>🏸</span> 更多羽球裝備與課程</div>
+            <div class="oa-desc">請加入【必In】官方 LINE，獲取專屬優惠</div>
+        </div>
+        <div class="oa-btn-white">加好友</div>
+    </a>
 </div>
 
 <script>
@@ -191,7 +214,7 @@
 
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     let myProfile = null;
-    let currentUserData = null; // 存儲完整的個人資料物件
+    let currentUserData = null; 
     let userRole = 'user';
 
     const btnContainer = document.getElementById('level-btns');
@@ -414,7 +437,6 @@
         const rawDate = document.getElementById('date_time').value;
         if(!rawDate) return alert("請選擇時間");
 
-        // 處理程度門檻數值
         const minLvVal = document.getElementById('min_level').value;
         const finalMinLv = minLvVal === 'custom' ? parseInt(document.getElementById('custom_level').value) : parseInt(minLvVal);
 
@@ -436,14 +458,12 @@
     }
 
     async function joinEvent(eventId, minLv, btn) {
-        // 1. 檢查是否設定過程度
         if (currentUserData && currentUserData.level === null) {
             alert("此場次有程度要求，請先點擊上方個人卡片設定您的等級！");
             showLevelModal();
             return;
         }
 
-        // 2. 檢查程度是否達標
         if (minLv > 0 && currentUserData.level < minLv) {
             alert(`此場次限制最低 Lv.${minLv}，您的等級 (Lv.${currentUserData.level}) 尚未達到門檻喔！💪`);
             return;
