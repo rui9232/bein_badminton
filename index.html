@@ -17,11 +17,10 @@
             --card-bg: #ffffff;
             --text-main: #262626;
             --text-sub: #8c8c8c;
-            /* 等級顏色 */
-            --lvl-low: #8c8c8c;    /* 低：灰色 */
-            --lvl-basic: #52c41a;  /* 初：綠色 */
-            --lvl-inter: #1890ff;  /* 中：藍色 */
-            --lvl-adv: #f5222d;    /* 高：紅色 */
+            --lvl-low: #8c8c8c;
+            --lvl-basic: #52c41a;
+            --lvl-inter: #1890ff;
+            --lvl-adv: #f5222d;
         }
 
         body { 
@@ -43,7 +42,6 @@
         .user-card img { width: 44px; height: 44px; border-radius: 50%; margin-right: 12px; border: 2px solid var(--primary); }
         .user-card span { font-weight: 500; font-size: 16px; }
 
-        /* 程度標籤樣式 */
         .level-badge {
             font-size: 10px; padding: 2px 6px; border-radius: 4px;
             margin-left: 5px; font-weight: bold; color: white; vertical-align: middle;
@@ -53,7 +51,6 @@
         .bg-inter { background: var(--lvl-inter); }
         .bg-adv { background: var(--lvl-adv); }
 
-        /* 程度選擇彈窗 */
         .modal {
             display: none; position: fixed; z-index: 1000; left: 0; top: 0; 
             width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
@@ -191,7 +188,6 @@
 
             renderUserDisplay(profile);
 
-            // 只有當等級完全為空時才「強制」彈窗
             if (profile && profile.level === null) { showLevelModal(); }
 
             if (profile && (profile.role === 'admin' || profile.role === 'organizer')) {
@@ -215,6 +211,7 @@
     }
 
     function renderUserDisplay(p) {
+        if (!p) return;
         const lvClass = getLevelClass(p.level);
         document.getElementById('user-display').innerHTML = `
             <img src="${p.picture_url || myProfile.pictureUrl}">
@@ -238,6 +235,7 @@
     function showLevelModal() { document.getElementById('level-modal').style.display = 'block'; }
     function closeLevelModal() { document.getElementById('level-modal').style.display = 'none'; }
 
+    // --- 【修正重點】 saveLevel 增加主動渲染邏輯 ---
     async function saveLevel(lv) {
         const { error } = await _supabase
             .from('profiles')
@@ -246,10 +244,21 @@
         
         if (!error) {
             closeLevelModal();
-            // 重新載入數據確保同步
-            loadEvents();
+            
+            // 立即重新向資料庫抓取最新的 profile 並渲染 UI
+            const { data: updatedProfile } = await _supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', myProfile.userId)
+                .single();
+
+            if (updatedProfile) {
+                renderUserDisplay(updatedProfile); // 更新頭部資訊
+                loadEvents(); // 更新下方列表名單
+            }
         } else {
-            alert("更新失敗，請重試");
+            console.error("更新失敗:", error);
+            alert("更新失敗，請檢查權限設定");
         }
     }
 
@@ -327,7 +336,6 @@
         }).join('');
     }
 
-    // --- 其他功能函式 ---
     async function copyPlayerList(eventId, title, dateTime, location) {
         const { data: regs } = await _supabase.from('registrations').select('user_name, profiles:user_id(level)').eq('event_id', eventId).order('created_at', { ascending: true });
         const { data: event } = await _supabase.from('events').select('max_players').eq('id', eventId).single();
@@ -359,6 +367,7 @@
         }]);
         document.getElementById('title').value = "";
         btn.disabled = false; btn.innerText = "確認發布";
+        loadEvents();
     }
 
     async function joinEvent(eventId, btn) {
@@ -366,23 +375,27 @@
         await _supabase.from('registrations').insert([{
             event_id: eventId, user_id: myProfile.userId, user_name: myProfile.displayName
         }]);
+        loadEvents();
     }
 
     async function cancelEvent(eventId, btn) {
         if (!confirm(`確定取消報名？`)) return;
         btn.disabled = true; btn.innerText = "取消中...";
         await _supabase.from('registrations').delete().eq('event_id', eventId).eq('user_id', myProfile.userId);
+        loadEvents();
     }
 
     async function deleteEvent(eventId, title, span) {
         if (!confirm(`確定刪除整個【${title}】場次？`)) return;
         await _supabase.from('registrations').delete().eq('event_id', eventId);
         await _supabase.from('events').delete().eq('id', eventId);
+        loadEvents();
     }
 
     async function adminKick(eventId, userId, userName) {
         if (!confirm(`移除球友【${userName}】？`)) return;
         await _supabase.from('registrations').delete().eq('event_id', eventId).eq('user_id', userId);
+        loadEvents();
     }
 
     main();
