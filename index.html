@@ -67,6 +67,13 @@
         .bg-inter { background: var(--lvl-inter); }
         .bg-adv { background: var(--lvl-adv); }
 
+        /* 程度篩選標籤 */
+        .limit-tag {
+            background: #fff7e6; color: #d46b08; border: 1px solid #ffd591;
+            padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;
+            margin-left: 8px; vertical-align: middle;
+        }
+
         .modal {
             display: none; position: fixed; z-index: 1000; left: 0; top: 0; 
             width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
@@ -90,7 +97,7 @@
         
         .input-group { margin-bottom: 12px; }
         label { font-size: 13px; color: var(--text-sub); display: block; margin-bottom: 4px; }
-        input { 
+        input, select { 
             width: 100%; padding: 12px; border: 1px solid #e8e8e8; border-radius: 10px; 
             box-sizing: border-box; font-size: 15px; transition: all 0.3s;
         }
@@ -110,7 +117,7 @@
         }
         .event-card::before { content: ""; position: absolute; top: 0; left: 0; width: 6px; height: 100%; background: var(--primary); }
         .event-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
-        .event-card h3 { margin: 0; font-size: 19px; color: #1a1a1a; }
+        .event-card h3 { margin: 0; font-size: 19px; color: #1a1a1a; display: flex; align-items: center; flex-wrap: wrap; }
         .event-info { font-size: 14px; color: #595959; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
         
         .admin-section { background: #f8f9fa; padding: 14px; border-radius: 12px; margin: 16px 0; }
@@ -152,10 +159,24 @@
         <div class="input-group"><label>日期與開始時間</label><input type="datetime-local" id="date_time"></div>
         <div class="input-group"><label>打球時長 (小時)</label><input type="number" id="duration" step="0.5" placeholder="例如：2"></div>
         <div class="input-group"><label>地點</label><input type="text" id="location" placeholder="球館名稱與場地號碼"></div>
+        
         <div style="display: flex; gap: 12px;">
             <div class="input-group" style="flex: 1;"><label>費用</label><input type="number" id="price" placeholder="金額"></div>
             <div class="input-group" style="flex: 1;"><label>正取上限</label><input type="number" id="max_players" placeholder="上限"></div>
         </div>
+
+        <div class="input-group">
+            <label>程度限制 (低於此等級將無法報名)</label>
+            <select id="min_level" onchange="toggleCustomLevel(this.value)">
+                <option value="0">不限程度</option>
+                <option value="4">限制 初級 (Lv.4) 以上</option>
+                <option value="8">限制 中級 (Lv.8) 以上</option>
+                <option value="12">限制 高級 (Lv.12) 以上</option>
+                <option value="custom">自訂最低 Lv...</option>
+            </select>
+            <input type="number" id="custom_level" style="display:none; margin-top:8px;" placeholder="請輸入最低 Lv (1-15)">
+        </div>
+
         <button id="post-btn" class="btn btn-primary" onclick="postNewEvent()">確認發布</button>
     </div>
 
@@ -170,7 +191,8 @@
 
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     let myProfile = null;
-    let userRole = 'user'; // 新增全域變數存儲角色
+    let currentUserData = null; // 存儲完整的個人資料物件
+    let userRole = 'user';
 
     const btnContainer = document.getElementById('level-btns');
     for (let i = 1; i <= 15; i++) {
@@ -179,6 +201,10 @@
         btn.innerText = i;
         btn.onclick = () => saveLevel(i);
         btnContainer.appendChild(btn);
+    }
+
+    function toggleCustomLevel(val) {
+        document.getElementById('custom_level').style.display = (val === 'custom') ? 'block' : 'none';
     }
 
     async function main() {
@@ -221,8 +247,9 @@
             profile = newProfile;
         }
 
-        renderUserDisplay(profile);
+        currentUserData = profile;
         userRole = profile?.role || 'user';
+        renderUserDisplay(profile);
 
         if (profile && profile.level === null) { showLevelModal(); }
 
@@ -243,6 +270,7 @@
             .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, () => loadEvents())
             .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, (payload) => {
                 if (payload.new.id === myProfile.userId) {
+                    currentUserData = payload.new;
                     userRole = payload.new.role;
                     renderUserDisplay(payload.new);
                 }
@@ -286,8 +314,7 @@
             closeLevelModal();
             loadEvents();
         } else {
-            console.error("更新失敗:", error);
-            alert("更新失敗，請檢查權限設定");
+            alert("更新失敗，請稍後再試");
         }
     }
 
@@ -314,16 +341,14 @@
             const count = currentRegs.length;
             const isFull = count >= ev.max_players;
             const amIJoined = currentRegs.some(r => r.user_id === myProfile.userId);
-
-            // --- 修正後的權限判斷 ---
-            // 只有「超級管理員」或「該活動的建立者」可以進行管理動作
             const canIManage = (userRole === 'admin') || (userRole === 'organizer' && ev.organizer_id === myProfile.userId);
+            const minLv = ev.min_level || 0;
 
             return `
                 <div class="event-card">
                     <div class="event-header">
                         <div style="flex: 1;">
-                            <h3>${ev.title}</h3>
+                            <h3>${ev.title} ${minLv > 0 ? `<span class="limit-tag">限 Lv.${minLv}+</span>` : ''}</h3>
                             ${canIManage ? `
                                 <div style="margin-top: 6px; display: flex; align-items: center;">
                                     <span class="copy-link" onclick="copyPlayerList(${ev.id}, '${ev.title}', '${ev.date_time}', '${ev.location}')">📋 複製名單</span>
@@ -359,7 +384,7 @@
                     <div style="margin-top:20px">
                         ${amIJoined 
                             ? `<button class="btn btn-cancel" onclick="cancelEvent(${ev.id}, this)">取消報名</button>` 
-                            : `<button class="btn ${isFull ? 'btn-warning' : 'btn-primary'}" onclick="joinEvent(${ev.id}, this)">
+                            : `<button class="btn ${isFull ? 'btn-warning' : 'btn-primary'}" onclick="joinEvent(${ev.id}, ${minLv}, this)">
                                 ${isFull ? '加入候補' : '立即報名'}
                                </button>`
                         }
@@ -388,6 +413,11 @@
         const btn = document.getElementById('post-btn');
         const rawDate = document.getElementById('date_time').value;
         if(!rawDate) return alert("請選擇時間");
+
+        // 處理程度門檻數值
+        const minLvVal = document.getElementById('min_level').value;
+        const finalMinLv = minLvVal === 'custom' ? parseInt(document.getElementById('custom_level').value) : parseInt(minLvVal);
+
         btn.disabled = true; btn.innerText = "發布中...";
         await _supabase.from('events').insert([{
             title: document.getElementById('title').value,
@@ -396,14 +426,29 @@
             location: document.getElementById('location').value,
             price: parseInt(document.getElementById('price').value) || 0,
             max_players: parseInt(document.getElementById('max_players').value) || 0,
+            min_level: finalMinLv || 0,
             organizer_id: myProfile.userId
         }]);
+        
         document.getElementById('title').value = "";
         btn.disabled = false; btn.innerText = "確認發布";
         loadEvents();
     }
 
-    async function joinEvent(eventId, btn) {
+    async function joinEvent(eventId, minLv, btn) {
+        // 1. 檢查是否設定過程度
+        if (currentUserData && currentUserData.level === null) {
+            alert("此場次有程度要求，請先點擊上方個人卡片設定您的等級！");
+            showLevelModal();
+            return;
+        }
+
+        // 2. 檢查程度是否達標
+        if (minLv > 0 && currentUserData.level < minLv) {
+            alert(`此場次限制最低 Lv.${minLv}，您的等級 (Lv.${currentUserData.level}) 尚未達到門檻喔！💪`);
+            return;
+        }
+
         btn.disabled = true; btn.innerText = "處理中...";
         await _supabase.from('registrations').insert([{
             event_id: eventId, user_id: myProfile.userId, user_name: myProfile.displayName
@@ -420,7 +465,6 @@
 
     async function deleteEvent(eventId, title, span) {
         if (!confirm(`確定刪除整個【${title}】場次？`)) return;
-        // 注意：為了安全性，建議在 Supabase 後端也設定 RLS
         await _supabase.from('registrations').delete().eq('event_id', eventId);
         await _supabase.from('events').delete().eq('id', eventId);
         loadEvents();
