@@ -79,6 +79,7 @@
         .wait-tag { border-color: var(--warning); color: var(--warning); background: #fffbe6; }
         .kick-x { margin-left: 6px; color: var(--error); cursor: pointer; font-weight: bold; }
         .del-link { color: var(--error); font-size: 12px; cursor: pointer; opacity: 0.6; }
+        .copy-link { color: #1890ff; font-size: 12px; cursor: pointer; margin-right: 12px; font-weight: 500; }
     </style>
 </head>
 <body>
@@ -118,14 +119,12 @@
             if (!liff.isLoggedIn()) { liff.login(); return; }
             myProfile = await liff.getProfile();
 
-            // 1. 取得用戶資料
             let { data: profile } = await _supabase
                 .from('profiles')
                 .select('*')
                 .eq('id', myProfile.userId)
                 .maybeSingle();
 
-            // 2. 自動建立新用戶 (包含照片補丁)
             if (!profile) {
                 const { data: newProfile } = await _supabase
                     .from('profiles')
@@ -139,7 +138,6 @@
                 profile = newProfile;
             }
 
-            // 3. UI 渲染
             document.getElementById('user-display').innerHTML = `
                 <img src="${myProfile.pictureUrl}">
                 <div><div style="font-size:12px; color:#8c8c8c">歡迎回來</div><span>${myProfile.displayName}</span></div>
@@ -150,10 +148,8 @@
                 document.getElementById('admin-panel').style.display = 'block';
             }
 
-            // 4. 初次讀取活動
             loadEvents();
 
-            // 5. 【即時更新核心】啟動 Realtime 監聽
             _supabase
                 .channel('any_change')
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'registrations' }, () => loadEvents())
@@ -164,12 +160,10 @@
     }
 
     async function loadEvents() {
-        // 優化：只顯示未來 24 小時內的過期場次或所有未來場次
-        const now = new Date().toISOString();
         const { data: events } = await _supabase
             .from('events')
             .select('*')
-            .gt('date_time', new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()) // 顯示 6 小時內的過期場次，之後隱藏
+            .gt('date_time', new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString())
             .order('date_time', { ascending: true });
 
         const { data: regs } = await _supabase.from('registrations').select('*').order('created_at', { ascending: true });
@@ -189,8 +183,15 @@
             return `
                 <div class="event-card">
                     <div class="event-header">
-                        <h3>${ev.title}</h3>
-                        ${isAdmin ? `<span class="del-link" onclick="deleteEvent(${ev.id}, '${ev.title}', this)">刪除活動</span>` : ''}
+                        <div style="flex: 1;">
+                            <h3>${ev.title}</h3>
+                            ${isAdmin ? `
+                                <div style="margin-top: 6px; display: flex; align-items: center;">
+                                    <span class="copy-link" onclick="copyPlayerList(${ev.id}, '${ev.title}', '${ev.date_time}', '${ev.location}')">📋 複製名單</span>
+                                    <span class="del-link" onclick="deleteEvent(${ev.id}, '${ev.title}', this)">🗑️ 刪除</span>
+                                </div>
+                            ` : ''}
+                        </div>
                     </div>
                     
                     <div class="event-info">📍 ${ev.location}</div>
@@ -228,17 +229,58 @@
         }).join('');
     }
 
-    // --- 功能函式 (含 Loading 處理) ---
+    async function copyPlayerList(eventId, title, dateTime, location) {
+        const { data: regs } = await _supabase
+            .from('registrations')
+            .select('user_name')
+            .eq('event_id', eventId)
+            .order('created_at', { ascending: true });
+
+        const { data: event } = await _supabase
+            .from('events')
+            .select('max_players')
+            .eq('id', eventId)
+            .single();
+
+        if (!regs || regs.length === 0) return alert("目前尚無人報名");
+
+        const dateStr = new Date(dateTime).toLocaleString('zh-TW', {
+            month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
+        });
+
+        let text = `🏸 【${title}】報名確認\n`;
+        text += `⏰ 時間：${dateStr}\n`;
+        text += `📍 地點：${location}\n`;
+        text += `------------------------\n`;
+        
+        regs.forEach((r, i) => {
+            const isWaiting = i >= event.max_players;
+            text += `${isWaiting ? '[候補] ' : (i + 1) + '. '}${r.user_name}\n`;
+        });
+
+        text += `------------------------\n`;
+        text += `🔥 目前共 ${regs.length} 人，期待見到大家！`;
+
+        try {
+            await navigator.clipboard.writeText(text);
+            alert("✅ 名單已複製，可以直接貼到 LINE 群組！");
+        } catch (err) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            alert("✅ 名單已複製 (手動相容模式)");
+        }
+    }
 
     async function postNewEvent() {
         const btn = document.getElementById('post-btn');
         const rawDate = document.getElementById('date_time').value;
         if(!rawDate) return alert("請選擇時間");
-
-        btn.disabled = true;
-        btn.innerText = "發布中...";
-
-        const { error } = await _supabase.from('events').insert([{
+        btn.disabled = true; btn.innerText = "發布中...";
+        await _supabase.from('events').insert([{
             title: document.getElementById('title').value,
             date_time: new Date(rawDate).toISOString(),
             duration: parseFloat(document.getElementById('duration').value) || 0,
@@ -247,45 +289,25 @@
             max_players: parseInt(document.getElementById('max_players').value) || 0,
             organizer_id: myProfile.userId
         }]);
-
-        if (error) {
-            alert("發布失敗: " + error.message);
-            btn.disabled = false;
-            btn.innerText = "確認發布";
-        } else {
-            // 清空表單
-            document.getElementById('title').value = "";
-            btn.disabled = false;
-            btn.innerText = "確認發布";
-        }
+        document.getElementById('title').value = "";
+        btn.disabled = false; btn.innerText = "確認發布";
     }
 
     async function joinEvent(eventId, btn) {
-        btn.disabled = true;
-        btn.innerText = "處理中...";
-        
-        const { error } = await _supabase.from('registrations').insert([{
+        btn.disabled = true; btn.innerText = "處理中...";
+        await _supabase.from('registrations').insert([{
             event_id: eventId, user_id: myProfile.userId, user_name: myProfile.displayName
         }]);
-
-        if (error) {
-            alert("報名失敗: " + error.message);
-            btn.disabled = false;
-            btn.innerText = "立即報名";
-        }
-        // 成功後不需要 location.reload()，Realtime 會自動更新 UI
     }
 
     async function cancelEvent(eventId, btn) {
         if (!confirm(`確定取消報名？`)) return;
-        btn.disabled = true;
-        btn.innerText = "取消中...";
+        btn.disabled = true; btn.innerText = "取消中...";
         await _supabase.from('registrations').delete().eq('event_id', eventId).eq('user_id', myProfile.userId);
     }
 
     async function deleteEvent(eventId, title, span) {
         if (!confirm(`確定刪除整個【${title}】場次？`)) return;
-        span.innerText = "刪除中...";
         await _supabase.from('registrations').delete().eq('event_id', eventId);
         await _supabase.from('events').delete().eq('id', eventId);
     }
